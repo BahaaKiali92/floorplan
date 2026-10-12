@@ -1,0 +1,11 @@
+{
+  "name": "project-map-sample-app",
+  "private": true,
+  "description": "Tiny Angular-shaped app to validate the project-map skill. It has two seeded structure issues and one service to split.",
+  "devDependencies": {
+    "typescript": ">=5.4"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

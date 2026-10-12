@@ -1,0 +1,11 @@
+{
+  "name": "project-map",
+  "displayName": "Project Map",
+  "version": "0.4.0",
+  "description": "Generated structure map for Angular apps that Claude reads for every task, an interactive bubble graph to move files and folders (imports rewritten), structure rules checked in CI, and an impact preview for moving methods between services.",
+  "author": {
+    "name": "Frontend Team"
+  },
+  "license": "MIT",
+  "keywords": ["angular", "architecture", "refactoring", "project-structure"]
+}

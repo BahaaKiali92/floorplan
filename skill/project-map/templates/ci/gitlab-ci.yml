@@ -1,0 +1,29 @@
+# Add to .gitlab-ci.yml
+# - Merge requests: fail only on NEW structure rule issues.
+# - main: regenerate and commit the main map (needs a project access token with write_repository in PROJECT_MAP_TOKEN).
+project-map-check:
+  image: node:22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - git fetch origin main
+    - npm run map:check
+
+project-map-main:
+  image: node:22
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /\[skip ci\]/
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - npm run map:main
+    - |
+      if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
+        git config user.name "project-map-bot"
+        git config user.email "project-map-bot@example.com"
+        git add docs/PROJECT_MAP.md docs/project-map.json
+        git commit -m "chore: update project map [skip ci]"
+        git push "https://oauth2:${PROJECT_MAP_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:main
+      fi

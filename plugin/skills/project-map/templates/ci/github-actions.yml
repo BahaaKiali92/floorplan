@@ -1,0 +1,45 @@
+# .github/workflows/project-map.yml
+# - Pull requests: fail only when the PR introduces NEW structure rule issues (existing ones on main don't block).
+# - Pushes to main (merges): regenerate the main map in docs/ and commit it. Only CI writes it, so no merge conflicts.
+# The map needs only Node; no npm install required.
+name: Project map
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # needed to commit the regenerated map on main
+
+concurrency:
+  group: project-map-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  project-map:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history: the check compares with the branch point on main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check rules (only new issues fail)
+        if: github.event_name == 'pull_request'
+        run: npm run map:check
+
+      - name: Regenerate the main map
+        if: github.event_name == 'push'
+        run: |
+          npm run map:main
+          if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
+            git config user.name "project-map-bot"
+            git config user.email "project-map-bot@users.noreply.github.com"
+            git add docs/PROJECT_MAP.md docs/project-map.json
+            git commit -m "chore: update project map [skip ci]"
+            git push
+          fi
