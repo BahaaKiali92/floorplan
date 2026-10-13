@@ -1,15 +1,16 @@
 {
-  "name": "project-map-tools",
-  "description": "Project structure tools for Angular and Spring Boot teams",
+  "name": "floorplan",
+  "description": "Floorplan: structure map, rules and refactoring graph for Angular and Spring Boot",
   "owner": {
     "name": "Bahaa Kiali",
     "url": "https://github.com/BahaaKayali92"
   },
   "plugins": [
     {
-      "name": "project-map",
+      "name": "floorplan",
       "source": "./plugin",
-      "description": "Structure map, rules and a bubble graph for Angular and Spring Boot: move files, classes and packages with imports rewritten, check rules in CI (only new issues fail), plan refactorings"
+      "description": "Structure map, rules (built-in + your CLAUDE.md) and a bubble graph for Angular and Spring Boot: issues with file, line and how to fix; move files, classes and packages with imports rewritten; CI check that fails only on new issues",
+      "category": "development"
     }
   ]
 }

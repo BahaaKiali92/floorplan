@@ -1,7 +1,7 @@
 {
-  "name": "project-map-sample-app",
+  "name": "floorplan-sample-app",
   "private": true,
-  "description": "Tiny Angular-shaped app to validate the project-map skill. It has two seeded structure issues and one service to split.",
+  "description": "Tiny Angular-shaped app to validate the floorplan skill. It has two seeded structure issues and one service to split.",
   "devDependencies": {
     "typescript": ">=5.4"
   },

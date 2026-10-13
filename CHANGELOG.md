@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0 (2026-10-13): Floorplan
+
+- **New name: Floorplan** (was project-map). Command `/floorplan`, config `floorplan.config.mjs`, tools in
+  `scripts/floorplan/`, map `docs/FLOORPLAN.md`, local folder `.floorplan/`, plugin `floorplan@floorplan`.
+  Repositories set up with the old name keep working (old config name and map paths are found);
+  `/floorplan update` migrates them.
+- **CLAUDE.md is the source of truth**: `/floorplan rules` turns the rules written in the project's CLAUDE.md files
+  into checks (`floorplan.claude-rules.json`, committed, with the source line of every rule). They are reported as
+  warnings (`claudeMdSeverity: 'error'` for errors); a built-in, preset or config rule CLAUDE.md contradicts is
+  switched off; statements that can't be checked are listed. When CLAUDE.md changes, the map, the check and the
+  session summary say the rules need a refresh. Floorplan never edits the rules part of CLAUDE.md.
+- New rule types `pattern` (code must not contain) and `requirePattern` (code must contain), comments ignored.
+- **Clearer issues**: repository path with line number (`src/app/x.component.ts:12`), the rule and where it comes from
+  (preset, config, or `CLAUDE.md:42` with the quote), what is wrong, why, and **how to fix it** (concrete steps or the
+  command), in the console, the map, the branch report, `map:check`, the PR comment, the edit hook and the graph.
+  The console shows 3 issues per rule plus a count; the map lists all.
+- Plugin ready for the marketplace: README in the plugin, `claude plugin validate --strict` clean, skill frontmatter
+  accepted by claude.ai uploads; setup can commit the skill into the repository for cloud sessions.
+
 ## 0.9.0 (2026-10-13)
 
 Rules

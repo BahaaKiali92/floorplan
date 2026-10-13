@@ -4,7 +4,7 @@
 //
 //   node experiments/run.mjs --repo <path-to-your-repo> --tasks experiments/tasks.example.json [options]
 //
-// The repository must already have project-map set up and committed (scripts/project-map, project-map.config.mjs,
+// The repository must already have floorplan set up and committed (scripts/floorplan, floorplan.config.mjs,
 // the main map, the CLAUDE.md section). The "without" copy removes all of that; the "with" copy keeps it.
 // Nothing is committed and your working copy is not touched: every run happens in a temporary git worktree.
 //
@@ -47,42 +47,42 @@ const git = (cwd, a) => execFileSync('git', a, { cwd, encoding: 'utf8', stdio: [
 
 // ---------- checks ----------
 const base = git(repo, ['rev-parse', ref]);
-if (!fs.existsSync(path.join(repo, 'scripts/project-map/generate-map.mjs'))) {
-  console.error('✗ scripts/project-map/ not found in the repository. Set up project-map and commit it first.'); process.exit(1);
+if (!fs.existsSync(path.join(repo, 'scripts/floorplan/generate-map.mjs'))) {
+  console.error('✗ scripts/floorplan/ not found in the repository. Set up floorplan and commit it first.'); process.exit(1);
 }
 if (!dry) { try { execFileSync('claude', ['--version'], { stdio: 'ignore' }); } catch { console.error('✗ The Claude Code CLI (claude) is not on PATH.'); process.exit(1); } }
 fs.mkdirSync(out, { recursive: true });
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-experiment-'));
 const toolsCopy = path.join(tmpRoot, '_tools');
-fs.cpSync(path.join(repo, 'scripts/project-map'), toolsCopy, { recursive: true });
-const configText = fs.existsSync(path.join(repo, 'project-map.config.mjs')) ? fs.readFileSync(path.join(repo, 'project-map.config.mjs'), 'utf8') : '';
+fs.cpSync(path.join(repo, 'scripts/floorplan'), toolsCopy, { recursive: true });
+const configText = fs.existsSync(path.join(repo, 'floorplan.config.mjs')) ? fs.readFileSync(path.join(repo, 'floorplan.config.mjs'), 'utf8') : '';
 
 // ---------- conditions ----------
 function stripProjectMap(dir) {
   // the "without" copy: no tools, no config, no maps, no CLAUDE.md section, no hooks
-  const cfg = path.join(dir, 'project-map.config.mjs');
-  let outputs = ['docs/PROJECT_MAP.md', 'docs/project-map.json', 'docs/project-map-areas'];
-  try { outputs = execFileSync(process.execPath, [path.join(dir, 'scripts/project-map/generate-map.mjs'), '--outputs'], { cwd: dir, encoding: 'utf8' }).trim().split(' '); } catch { /* defaults */ }
-  for (const p of ['scripts/project-map', 'project-map.config.mjs', '.project-map', ...outputs]) fs.rmSync(path.join(dir, p), { recursive: true, force: true });
+  const cfg = path.join(dir, 'floorplan.config.mjs');
+  let outputs = ['docs/FLOORPLAN.md', 'docs/floorplan.json', 'docs/floorplan-areas'];
+  try { outputs = execFileSync(process.execPath, [path.join(dir, 'scripts/floorplan/generate-map.mjs'), '--outputs'], { cwd: dir, encoding: 'utf8' }).trim().split(' '); } catch { /* defaults */ }
+  for (const p of ['scripts/floorplan', 'floorplan.config.mjs', '.floorplan', ...outputs]) fs.rmSync(path.join(dir, p), { recursive: true, force: true });
   void cfg;
   const cm = path.join(dir, 'CLAUDE.md');
   if (fs.existsSync(cm)) {
     let t = fs.readFileSync(cm, 'utf8');
-    t = t.replace(/<!-- project-map:start[\s\S]*?<!-- project-map:end -->\r?\n?/, '').replace(/(^|\n)## Project structure\n[\s\S]*?(?=\n## |\n# |$)/, '$1');
+    t = t.replace(/<!-- floorplan:start[\s\S]*?<!-- floorplan:end -->\r?\n?/, '').replace(/(^|\n)## Project structure\n[\s\S]*?(?=\n## |\n# |$)/, '$1');
     if (t.trim()) fs.writeFileSync(cm, t); else fs.rmSync(cm);
   }
   const st = path.join(dir, '.claude/settings.json');
   if (fs.existsSync(st)) {
     const s = JSON.parse(fs.readFileSync(st, 'utf8'));
     for (const ev of Object.keys(s.hooks || {})) {
-      s.hooks[ev] = s.hooks[ev].map((g) => ({ ...g, hooks: (g.hooks || []).filter((h) => !(h.command || '').includes('project-map')) })).filter((g) => g.hooks.length);
+      s.hooks[ev] = s.hooks[ev].map((g) => ({ ...g, hooks: (g.hooks || []).filter((h) => !(h.command || '').includes('floorplan')) })).filter((g) => g.hooks.length);
       if (!s.hooks[ev].length) delete s.hooks[ev];
     }
     fs.writeFileSync(st, JSON.stringify(s, null, 2) + '\n');
   }
   // commit the stripped state locally so the evaluation compares only Claude's changes
   git(dir, ['add', '-A']);
-  try { git(dir, ['-c', 'user.name=experiment', '-c', 'user.email=experiment@example.com', 'commit', '-qm', 'experiment: without project-map']); } catch { /* nothing to strip */ }
+  try { git(dir, ['-c', 'user.name=experiment', '-c', 'user.email=experiment@example.com', 'commit', '-qm', 'experiment: without floorplan']); } catch { /* nothing to strip */ }
 }
 
 function prepare(cond, taskId, run) {
@@ -101,16 +101,16 @@ function evaluate(dir, cond) {
     fs.cpSync(toolsCopy, path.join(dir, '.pm-eval-tools'), { recursive: true });
     if (configText) fs.writeFileSync(path.join(dir, '.pm-eval-config.mjs'), configText);
   }
-  const tool = cond === 'without' ? path.join(dir, '.pm-eval-tools', 'generate-map.mjs') : path.join(dir, 'scripts/project-map/generate-map.mjs');
+  const tool = cond === 'without' ? path.join(dir, '.pm-eval-tools', 'generate-map.mjs') : path.join(dir, 'scripts/floorplan/generate-map.mjs');
   const cfg = cond === 'without' ? ['--config', path.join(dir, '.pm-eval-config.mjs')] : [];
   // committed starting point = the "main" the check compares with
   const head = git(dir, ['rev-parse', 'HEAD']);
-  const r = spawnSync(process.execPath, [tool, '--check', '--base', head, ...cfg], { cwd: dir, encoding: 'utf8', env: { ...process.env, PROJECT_MAP_NO_CACHE: '1' } });
+  const r = spawnSync(process.execPath, [tool, '--check', '--base', head, ...cfg], { cwd: dir, encoding: 'utf8', env: { ...process.env, FLOORPLAN_NO_CACHE: '1' } });
   const outText = (r.stdout || '') + (r.stderr || '');
   // the check also writes the branch report: errors and warnings separately
   let newIssues = [], warnings = [], fixed = [];
   try {
-    const b = JSON.parse(fs.readFileSync(path.join(dir, '.project-map', 'branch.json'), 'utf8'));
+    const b = JSON.parse(fs.readFileSync(path.join(dir, '.floorplan', 'branch.json'), 'utf8'));
     const fmt = (v) => `${v.file} ${v.detail} (${v.rule})`;
     newIssues = b.newIssues.filter((v) => v.severity !== 'warn').map(fmt);
     warnings = b.newIssues.filter((v) => v.severity === 'warn').map(fmt);
@@ -120,7 +120,7 @@ function evaluate(dir, cond) {
     fixed = [...outText.matchAll(/✓ fixed: (.+)/g)].map((m) => m[1].trim());
   }
   const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean)
-    .filter((l) => !/\.pm-eval|\.project-map\/|node_modules/.test(l));
+    .filter((l) => !/\.pm-eval|\.floorplan\/|node_modules/.test(l));
   const created = status.filter((l) => l.startsWith('??') || l.startsWith('A ')).map((l) => l.slice(3));
   const changed = status.filter((l) => !l.startsWith('??') && !l.startsWith('A ')).map((l) => l.slice(3));
   let verifyOk = null, verifyOut = '';

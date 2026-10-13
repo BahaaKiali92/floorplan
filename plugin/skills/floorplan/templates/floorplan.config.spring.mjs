@@ -1,0 +1,127 @@
+// Floorplan configuration for a Spring Boot (Java) project. This is the only file you edit by hand.
+// The generator reads the real code; here you add what code can't tell:
+// what each package is for, who owns it, and where things are allowed to live.
+//
+// All paths are relative to `root` (folders = packages). Patterns: '*' = one folder, '**' = any depth.
+// Kinds the generator recognizes (from annotations and names): application, controller, service, repository,
+// entity, dto, mapper, config, component, listener, exception, model, interface, other.
+
+export default {
+  framework: 'spring',
+
+  // Single module: the base package folder, so paths read like packages (orders/OrderService.java).
+  // Several Maven/Gradle modules: '.' (the repository), and use module names in the patterns below.
+  root: 'src/main/java/com/acme/shop',
+
+  output: {
+    markdown: 'docs/FLOORPLAN.md',   // MAIN map, committed, written only by CI on main
+    json: 'docs/floorplan.json',
+    local: '.floorplan',             // local map + branch report, never committed (the folder ignores itself)
+  },
+
+  // Above this many files, a folder shows counts instead of class names (keeps the map small).
+  maxFilesPerFolder: 8,
+
+  // "Areas" used for the dependency overview. Default: the first folder under root (a feature or layer package).
+  // units: ['modules/*'],
+
+  ignore: ['**/package-info.java', '**/module-info.java'],
+
+  // Branch report and map:check compare with this branch (origin/<baseBranch> if it exists, else the local one).
+  baseBranch: 'main',
+
+  // compactAbove: 400, compactDepth: 3, compactMaxLines: 250, compactWideFolder: 30,
+
+  // Package purposes. Exact paths win over wildcard ones.
+  folders: {
+    'config': { purpose: 'Spring configuration: beans, security, web, clients' },
+    'shared': { purpose: 'Small generic building blocks (value objects, exceptions). No feature logic, no beans' },
+    'orders': { purpose: 'Orders: REST API, business logic, persistence', owner: 'team-orders' },
+    'customers': { purpose: 'Customers: REST API, business logic, persistence' },
+    'notifications': { purpose: 'Message listeners that react to events from other systems' },
+  },
+
+  // Presets add rules and folder purposes; your own rules with the same name replace them, severity: 'off' drops one.
+  // Available: angular-feature-sliced, angular-nx, spring-layered, spring-hexagonal (scripts/floorplan/presets/).
+  // presets: ['spring-layered'],
+
+  // Imports used only as types (interfaces, type aliases; erased at build time): 'error' (like any import),
+  // 'warn' (report as warnings) or 'ignore'. A rule can set its own typeImports.
+  typeImports: 'warn',
+
+  // Known exceptions: still listed (map, graph), but never counted or failing. Remove them once fixed (the map warns).
+  accepted: [
+    // { rule: 'features-are-isolated', file: 'features/orders/order-detail/order-detail.component.ts',
+    //   detail: 'customer-avatar', reason: 'shared avatar moves to shared/ui in JIRA-123' },
+  ],
+
+  // Budgets: allow up to n issues of a rule while you clean up. map:check fails when the count goes above the budget,
+  // and the allowance never goes up again (it follows main's count down). Lower the number as you fix issues.
+  budget: {
+    // 'features-are-isolated': 11,
+  },
+
+  rules: [
+    // ----- layers (work for package-by-feature and package-by-layer) -----
+    {
+      name: 'controllers-use-services',
+      type: 'noImport',
+      fromKinds: ['controller'],
+      toKinds: ['repository'],
+      message: 'Controllers call services, not repositories.',
+    },
+    {
+      name: 'controllers-return-dtos',
+      type: 'noImport',
+      fromKinds: ['controller'],
+      toKinds: ['entity'],
+      severity: 'warn',
+      message: 'Controllers should expose DTOs, not JPA entities.',
+    },
+
+    // ----- package by feature -----
+    {
+      name: 'no-foreign-internals',
+      type: 'noImport',
+      from: '*',
+      to: '*',
+      allowSame: true, // a feature may use its own repositories and entities
+      exceptFrom: ['shared', 'config'],
+      toKinds: ['repository', 'entity'],
+      message: 'Use another feature through its service, not its repositories or entities.',
+    },
+    {
+      name: 'shared-has-no-feature-deps',
+      type: 'noImport',
+      from: 'shared',
+      to: ['orders', 'customers', 'notifications'],
+      message: 'shared/ must stay generic. It cannot depend on features.',
+    },
+    {
+      name: 'services-in-features',
+      type: 'placement',
+      kinds: ['service'],
+      allowedIn: ['orders', 'customers', 'notifications'],
+      message: 'Services belong to a feature package, not to shared/ or config/.',
+    },
+
+    // ----- package by layer: use these instead of the feature rules -----
+    // { name: 'controllers-in-web', type: 'placement', kinds: ['controller'], allowedIn: ['web', 'controller'],
+    //   message: 'Controllers belong in web/.' },
+    // { name: 'repositories-in-persistence', type: 'placement', kinds: ['repository'], allowedIn: ['repository', 'persistence'],
+    //   message: 'Repositories belong in repository/.' },
+    // { name: 'domain-has-no-web', type: 'noImport', from: 'domain', toKinds: ['controller', 'dto'],
+    //   message: 'The domain must not depend on the web layer.' },
+
+    // ----- more rule types (see docs/3-FEATURES.md, rule types). Each rule can also have why, docs and errorFrom. -----
+    // { name: 'constructor-injection', type: 'fieldInjection', severity: 'warn' },
+    // { name: 'proxy-annotations-on-public-methods', type: 'proxyAnnotations' },
+    // { name: 'no-package-cycles', type: 'noCycles' },
+    // { name: 'web-stays-out-of-services', type: 'noPackage', kinds: ['service', 'repository'],
+    //   packages: ['org.springframework.web.bind.annotation', 'jakarta.servlet'] },
+    // { name: 'layers', type: 'layers', layers: [['**/web'], ['**/service'], ['**/repository', '**/domain']] },
+    // { name: 'orphan-tests', type: 'orphanTests', severity: 'warn' },
+    // { name: 'big-classes', type: 'maxSize', maxLines: 800, severity: 'warn' },
+    // { name: 'unused-classes', type: 'unused', severity: 'warn' },
+  ],
+};

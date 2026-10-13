@@ -1,5 +1,5 @@
 name: Real-project report
-description: How project-map worked on a real Angular or Spring Boot repository
+description: How floorplan worked on a real Angular or Spring Boot repository
 labels: [report]
 body:
   - type: markdown
@@ -20,8 +20,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: project-map version
-      description: scripts/project-map/VERSION
+      label: floorplan version
+      description: scripts/floorplan/VERSION
   - type: textarea
     id: setup
     attributes:
@@ -41,4 +41,4 @@ body:
     id: timing
     attributes:
       label: Timing
-      description: "time node scripts/project-map/generate-map.mjs (first and second run)"
+      description: "time node scripts/floorplan/generate-map.mjs (first and second run)"

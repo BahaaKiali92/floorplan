@@ -17,5 +17,5 @@ body:
     id: env
     attributes:
       label: Versions
-      description: scripts/project-map/VERSION, node --version, OS
+      description: scripts/floorplan/VERSION, node --version, OS
     validations: { required: true }

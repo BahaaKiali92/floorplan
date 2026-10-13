@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floorplan</title>
+<style>
+/* Floorplan: a topographic survey sheet. Folders are contour rings with elevation tints, files are legend symbols,
+   rule issues are disputed borders. Barlow (SIL OFL, fonts/OFL.txt) is bundled: no request leaves this machine. */
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url(/vendor/fonts/Barlow-Regular.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url(/vendor/fonts/Barlow-Medium.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600 700; font-display: swap; src: url(/vendor/fonts/Barlow-SemiBold.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; font-display: swap; src: url(/vendor/fonts/BarlowSemiCondensed-Medium.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600 700; font-display: swap; src: url(/vendor/fonts/BarlowSemiCondensed-SemiBold.woff2) format("woff2"); }
+:root {
+  --paper: #f2f4ee; --sheet: #fbfcf8; --sheet-2: #e9ede4; --ink: #1e2923; --ink-2: #5a6a60; --rule: #d3dacd;
+  --contour: #9a7b5b; --water: #2d6e9e; --water-soft: rgba(45,110,158,.12); --border-red: #c2412d; --border-red-soft: rgba(194,65,45,.10);
+  --ok: #3b7d4f; --warn: #b07a1c;
+  --e1: #e6ebe0; --e2: #dae2d2; --e3: #cfd9c5; --e4: #c4d0b9;
+  --k-component: #3f74b0; --k-service: #3a8656; --k-routes: #c08325; --k-guard: #7457a3;
+  --k-pipe: #2a8f8c; --k-store: #ad4e74; --k-model: #87918a; --k-other: #a3aaa2;
+  --grid: rgba(30,41,35,.045);
+  --shadow: 0 1px 0 rgba(30,41,35,.06), 0 10px 28px rgba(30,41,35,.12);
+  --ui: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --label: "Barlow Semi Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
+  --code: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111a15; --sheet: #17221c; --sheet-2: #1f2c25; --ink: #e2e9e3; --ink-2: #9aaaa0; --rule: #2c3a32;
+    --contour: #b99b79; --water: #73aede; --water-soft: rgba(115,174,222,.16); --border-red: #ea6f5a; --border-red-soft: rgba(234,111,90,.14);
+    --ok: #6cc08a; --warn: #e2ac4f;
+    --e1: #18241e; --e2: #1d2b24; --e3: #22332a; --e4: #283a30;
+    --k-component: #6c9fd8; --k-service: #5fb07e; --k-routes: #dba34a; --k-guard: #9d84cf;
+    --k-pipe: #4fb7b3; --k-store: #d2759a; --k-model: #9aa59c; --k-other: #7b867e;
+    --grid: rgba(226,233,227,.04);
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 12px 30px rgba(0,0,0,.45);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--ui); display: flex; flex-direction: column; }
+code, .mono { font-family: var(--code); font-size: 12.5px; }
+:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+
+/* title block */
+header.top { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: var(--sheet); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.title { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.title h1 { font: 600 18px/1.1 var(--ui); margin: 0; letter-spacing: .01em; white-space: nowrap; }
+.title small { color: var(--ink-2); font: 500 13px var(--label); white-space: nowrap; }
+.crumbs { display: flex; gap: 2px; align-items: center; flex: 1; min-width: 200px; overflow: hidden; font: 500 15px var(--label); }
+.crumbs button { background: none; border: 0; color: var(--water); font: inherit; cursor: pointer; padding: 3px 6px; border-radius: 4px; white-space: nowrap; }
+.crumbs button:hover { background: var(--water-soft); }
+.crumbs button[disabled] { color: var(--ink); font-weight: 600; cursor: default; background: none; }
+.crumbs button.drop { outline: 2px dashed var(--water); background: var(--water-soft); }
+.crumbs span { color: var(--contour); }
+.search { position: relative; }
+.search input { width: 250px; padding: 7px 11px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; }
+.search input::placeholder { color: var(--ink-2); }
+.search ul { position: absolute; top: 40px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); z-index: 20; max-height: 340px; overflow: auto; }
+.search li { padding: 6px 8px; border-radius: 5px; cursor: pointer; }
+.search li:hover, .search li.active { background: var(--water-soft); }
+.search li small { display: block; color: var(--ink-2); font-family: var(--code); font-size: 11.5px; }
+.status { display: flex; gap: 6px; align-items: center; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rule); font: 500 13.5px var(--label); white-space: nowrap; color: var(--ink-2); }
+.pill b { color: var(--ink); font-weight: 600; }
+.pill.bad { border-color: var(--border-red); color: var(--border-red); background: var(--border-red-soft); }
+.pill.bad b { color: inherit; }
+.pill.good { border-color: color-mix(in srgb, var(--ok) 50%, transparent); color: var(--ok); }
+.btn { border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); padding: 7px 13px; border-radius: 6px; font: 500 14px var(--ui); cursor: pointer; white-space: nowrap; }
+.btn:hover:not([disabled]) { border-color: var(--water); color: var(--water); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn.primary { background: var(--water); border-color: var(--water); color: #fff; }
+.btn.primary:hover:not([disabled]) { color: #fff; filter: brightness(1.08); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+
+/* the map */
+main { flex: 1; display: flex; min-height: 0; }
+#canvas { flex: 1; position: relative; min-width: 0;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 64px 64px; }
+#canvas #svg { width: 100%; height: 100%; display: block; }
+svg text { pointer-events: none; font-family: var(--label); paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
+svg text.on-color { stroke: rgba(0,0,0,.25); stroke-width: 2px; }
+.shape.folder { stroke: var(--contour); stroke-width: 1; stroke-opacity: .7; cursor: pointer; }
+.shape.file { stroke: rgba(0,0,0,.18); stroke-width: 1; cursor: grab; }
+.shape.bad { stroke: var(--border-red) !important; stroke-width: 2.5 !important; stroke-dasharray: 5 3; stroke-opacity: 1 !important; }
+.shape.selected { stroke: var(--ink) !important; stroke-width: 2.5 !important; stroke-dasharray: none; stroke-opacity: 1 !important; }
+.shape.drop { stroke: var(--water) !important; stroke-width: 3 !important; stroke-dasharray: 7 4; fill: var(--water-soft) !important; }
+.shape.drop-same { stroke: var(--ink-2) !important; stroke-width: 2 !important; stroke-dasharray: 3 4; }
+.shape.svc { cursor: pointer; }
+.shape.method { stroke: var(--k-service); stroke-width: 1.5; cursor: grab; }
+.shape.method.priv { stroke-dasharray: 4 3; }
+.shape.picked { fill: var(--water-soft) !important; stroke: var(--water) !important; stroke-width: 3 !important; }
+.edge { fill: none; stroke-width: 2; opacity: .85; pointer-events: none; }
+.edge.out { stroke: var(--water); }
+.edge.in { stroke: var(--warn); }
+.ghost path { opacity: .9; stroke: var(--ink); stroke-width: 2; }
+.ghost text { font-weight: 600; }
+.legend { position: absolute; left: 14px; bottom: 14px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 9px 12px; font: 500 13px var(--label); box-shadow: var(--shadow); max-width: calc(100% - 28px); }
+.legend .items { display: flex; flex-wrap: wrap; gap: 5px 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg.glyph { width: 16px; height: 16px; flex: none; overflow: visible; }
+.legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
+.legend .tip { color: var(--ink-2); margin-top: 6px; font-weight: 400; }
+.legend button.toggle { background: none; border: 0; color: var(--ink-2); font: inherit; cursor: pointer; padding: 0; float: right; margin-left: 12px; }
+.legend.closed .items, .legend.closed .tip { display: none; }
+
+/* the legend sheet (side panel) */
+aside { width: 380px; background: var(--sheet); border-left: 1px solid var(--rule); overflow: auto; padding: 18px 20px 28px; }
+aside h2 { font: 600 21px/1.2 var(--ui); margin: 0 0 3px; word-break: break-word; }
+aside h3 { font: 600 15px var(--ui); color: var(--ink); margin: 22px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--rule); }
+aside .path { color: var(--ink-2); font-family: var(--code); font-size: 12px; word-break: break-all; }
+aside .purpose { margin-top: 10px; padding: 9px 12px; background: var(--sheet-2); border-left: 3px solid var(--contour); border-radius: 0 6px 6px 0; }
+aside ul { list-style: none; margin: 0; padding: 0; }
+aside li { padding: 5px 0; border-bottom: 1px solid var(--rule); word-break: break-all; font-size: 14px; }
+aside li:last-child { border-bottom: 0; }
+aside li a { color: var(--water); cursor: pointer; text-decoration: none; }
+aside li a:hover { text-decoration: underline; }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px var(--label); color: #fff; }
+.viol { border: 1px dashed var(--border-red); background: var(--border-red-soft); padding: 8px 10px; border-radius: 6px; margin: 8px 0; font-size: 14px; }
+.viol b { color: var(--border-red); font-weight: 600; }
+.viol.warn { border-color: var(--k-routes); background: transparent; }
+.viol.warn b { color: var(--ink); }
+.viol .sev { font: 600 11px var(--label); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; color: var(--ink-2); }
+.viol .why { color: var(--ink-2); margin-top: 4px; }
+.viol .src { color: var(--ink-2); margin-top: 4px; font-size: 13px; }
+.viol .src q { font-style: italic; }
+.viol .howto { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--rule); }
+.viol .howto b { color: var(--ink); }
+.viol code { font: 12px var(--mono, ui-monospace, monospace); background: var(--paper); padding: 1px 4px; border-radius: 3px; word-break: break-all; }
+.viol.accepted { border-style: dotted; border-color: var(--rule); background: transparent; }
+.issue-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; font-size: 13px; }
+.issue-filter select { flex: 1 1 140px; min-width: 0; font: inherit; padding: 4px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); color: var(--ink); max-width: 100%; }
+.issue-filter label { display: inline-flex; gap: 4px; align-items: center; }
+.shape:focus { outline: none; }
+.shape:focus-visible { stroke: var(--water) !important; stroke-width: 3px !important; }
+.viol.fixed { border-color: var(--ok); background: transparent; }
+.viol.fixed b { color: var(--ok); }
+.viol .btn { display: table; margin-top: 8px; }
+.hint { color: var(--ink-2); font-size: 14px; }
+.mlist label { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); cursor: pointer; }
+.mlist .vis { color: var(--ink-2); font-size: 12.5px; margin-left: auto; white-space: nowrap; }
+.tag { display: inline-block; font: 600 12px var(--label); padding: 1px 8px; border-radius: 999px; margin-right: 6px; }
+.tag.blocker { background: var(--border-red); color: #fff; }
+.tag.decide { background: var(--warn); color: #fff; }
+.tag.info { background: var(--sheet-2); color: var(--ink-2); }
+.decision { border-left: 3px solid var(--warn); background: var(--sheet-2); padding: 9px 11px; border-radius: 0 6px 6px 0; margin: 7px 0; }
+.decision.blocker { border-color: var(--border-red); background: var(--border-red-soft); }
+.decision ul { margin: 6px 0 0 18px; padding: 0; color: var(--ink-2); font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chips span { border: 1px solid var(--rule); border-radius: 999px; padding: 2px 10px; font: 500 13.5px var(--label); }
+.chips span.bad { border-color: var(--border-red); color: var(--border-red); background: var(--border-red-soft); font-weight: 600; }
+.dirline { font-size: 15px; padding: 4px 0; }
+pre.task { white-space: pre-wrap; font: 12px/1.55 var(--code); background: var(--sheet-2); padding: 12px; border-radius: 6px; max-height: 260px; overflow: auto; margin: 0; }
+.preview-note { font-size: 13px; color: var(--ink-2); margin-right: auto; align-self: center; }
+input.name { width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 14px var(--code); margin-top: 6px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--sheet); padding: 11px 16px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; z-index: 50; max-width: calc(100% - 32px); font-size: 14.5px; }
+.toast button { background: none; border: 0; color: var(--sheet); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.modal-bg { position: fixed; inset: 0; background: rgba(17,26,21,.5); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
+.modal { background: var(--sheet); border-radius: 10px; box-shadow: var(--shadow); width: min(740px, 100%); max-height: 86vh; display: flex; flex-direction: column; border-top: 4px solid var(--contour); }
+.modal header { padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+.modal header h1 { font: 600 18px/1.25 var(--ui); margin: 0; }
+.modal .body { padding: 16px 20px; overflow: auto; }
+.modal .body h4 { margin: 18px 0 7px; font: 600 15px var(--ui); }
+.modal .body h4:first-child { margin-top: 0; }
+.modal code { font-size: 12.5px; line-height: 1.55; word-break: break-all; }
+.modal .row { padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.modal .from { color: var(--border-red); text-decoration: line-through; opacity: .85; }
+.modal .to { color: var(--ok); }
+.modal footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--rule); }
+.error { color: var(--border-red); }
+#carry { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: var(--water); color: #fff; padding: 8px 10px 8px 16px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; z-index: 30; max-width: calc(100% - 32px); }
+#carry[hidden] { display: none; }
+#carry button { background: rgba(255,255,255,.2); border: 0; color: #fff; padding: 5px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
+.actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  #canvas { min-height: 60vh; }
+  aside { width: auto; border-left: 0; border-top: 1px solid var(--rule); }
+  .search input { width: 170px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="title"><h1>Floorplan</h1><small id="subtitle"></small></div>
+  <nav class="crumbs" id="crumbs" aria-label="Current folder"></nav>
+  <div class="search">
+    <input id="search" placeholder="Find a file or folder" autocomplete="off" aria-label="Find a file or folder">
+    <ul id="results" hidden></ul>
+  </div>
+  <div class="status" id="stats"></div>
+  <button class="btn" id="exportBtn" title="Save the current view as PNG or SVG (for pull requests and slides)">Save image</button>
+  <button class="btn" id="undo" disabled title="Undo the last move">Undo</button>
+</header>
+<main>
+  <div id="canvas">
+    <svg id="svg" role="group" aria-label="Floorplan: folders contain folders and files. Tab through the shapes, Enter opens, Escape goes up, / searches."></svg>
+    <div class="legend" id="legend"></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+<div id="carry" hidden></div>
+<div id="modal"></div>
+<div id="toast"></div>
+
+<script src="/vendor/d3.min.js"></script>
+<script>
+const KIND_COLOR = {
+  component: 'var(--k-component)', service: 'var(--k-service)', routes: 'var(--k-routes)',
+  guard: 'var(--k-guard)', interceptor: 'var(--k-guard)', resolver: 'var(--k-guard)',
+  pipe: 'var(--k-pipe)', directive: 'var(--k-pipe)', store: 'var(--k-store)',
+  model: 'var(--k-model)', config: 'var(--k-other)', module: 'var(--k-routes)', other: 'var(--k-other)',
+  // Spring Boot (Java)
+  controller: 'var(--k-component)', repository: 'var(--k-routes)', entity: 'var(--k-store)', dto: 'var(--k-pipe)',
+  mapper: 'var(--k-pipe)', listener: 'var(--k-guard)', application: 'var(--k-guard)',
+  exception: 'var(--k-model)', interface: 'var(--k-model)',
+};
+const SPRING = () => DATA && DATA.framework === 'spring';
+// Each file kind has its own shape, so the map reads without colour too (and doesn't look like a petri dish):
+// UI blocks are squares, logic is hexagonal, data stores are cylinders, entry points and routes are triangles,
+// guards are shields, data shapes are diamonds and pills.
+const SHAPE_ANGULAR = { component: 'square', directive: 'pill', pipe: 'pill', service: 'hexagon', guard: 'shield',
+  interceptor: 'shield', resolver: 'shield', routes: 'triangle', module: 'triangle', store: 'cylinder', model: 'diamond',
+  config: 'octagon', other: 'dot' };
+const SHAPE_SPRING = { controller: 'square', service: 'hexagon', component: 'hexagon', repository: 'cylinder', entity: 'diamond',
+  dto: 'pill', mapper: 'pill', listener: 'triangle', config: 'octagon', application: 'octagon', exception: 'dot', model: 'dot',
+  interface: 'dot', annotation: 'dot', other: 'dot' };
+// A file that shows its methods inside keeps its kind's shape, drawn large enough to hold the method bubbles.
+const COVER = { square: 'square-cover', hexagon: 'hexagon-cover', octagon: 'octagon-cover' };
+const shapeOf = (d) => {
+  if (d.data.type === 'folder' || isMethod(d)) return 'circle';
+  const s = (SPRING() ? SHAPE_SPRING : SHAPE_ANGULAR)[d.data.kind] || 'dot';
+  return isService(d) ? COVER[s] || 'circle' : s;
+};
+// path of a shape centred at (x, y) that fits in a circle of radius r
+function shapePath(shape, x, y, r) {
+  if (!(r > 0)) return '';
+  const poly = (pts) => 'M' + pts.map(([a, b]) => `${(x + a).toFixed(1)},${(y + b).toFixed(1)}`).join('L') + 'Z';
+  const ring = (n, rr, rot = 0) => Array.from({ length: n }, (_, i) => { const t = rot + (i * 2 * Math.PI) / n; return [rr * Math.cos(t), rr * Math.sin(t)]; });
+  const rrect = (w, h, c) => `M${x - w + c},${y - h}H${x + w - c}Q${x + w},${y - h} ${x + w},${y - h + c}V${y + h - c}Q${x + w},${y + h} ${x + w - c},${y + h}H${x - w + c}Q${x - w},${y + h} ${x - w},${y + h - c}V${y - h + c}Q${x - w},${y - h} ${x - w + c},${y - h}Z`;
+  switch (shape) {
+    case 'circle': return `M${x - r},${y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
+    case 'dot': { const q = r * 0.78; return `M${x - q},${y}a${q},${q} 0 1,0 ${2 * q},0a${q},${q} 0 1,0 ${-2 * q},0`; }
+    case 'square': { const a = r * 0.76; return rrect(a, a, a * 0.22); }
+    case 'pill': { const w = r * 0.95, h = r * 0.55; return rrect(w, h, h); }
+    case 'hexagon': return poly(ring(6, r * 0.96, 0));
+    case 'hexagon-cover': return poly(ring(6, r * 1.1, 0));
+    case 'octagon-cover': return poly(ring(8, r * 1.06, Math.PI / 8));
+    case 'square-cover': { const a = r * 0.97; return rrect(a, a, a * 0.4); }
+    case 'octagon': return poly(ring(8, r * 0.95, Math.PI / 8));
+    case 'diamond': return poly([[0, -r * 0.98], [r * 0.82, 0], [0, r * 0.98], [-r * 0.82, 0]]);
+    case 'triangle': return poly([[0, -r * 0.92], [r * 0.9, r * 0.66], [-r * 0.9, r * 0.66]]);
+    case 'shield': return `M${x},${y - r * 0.9}L${x + r * 0.78},${y - r * 0.55}V${y + r * 0.05}Q${x + r * 0.7},${y + r * 0.62} ${x},${y + r * 0.95}Q${x - r * 0.7},${y + r * 0.62} ${x - r * 0.78},${y + r * 0.05}V${y - r * 0.55}Z`;
+    case 'cylinder': { const w = r * 0.74, h = r * 0.82, e = r * 0.2;
+      return `M${x - w},${y - h + e}A${w},${e} 0 0,1 ${x + w},${y - h + e}V${y + h - e}A${w},${e} 0 0,1 ${x - w},${y + h - e}Z`
+        + `M${x - w},${y - h + e}A${w},${e} 0 0,0 ${x + w},${y - h + e}`; }
+    default: return `M${x - r},${y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
+  }
+}
+// Spring "component" is a plain bean (grey); Angular "component" is UI (blue)
+const kindColor = (k) => (SPRING() && k === 'component' ? 'var(--k-other)' : KIND_COLOR[k] || KIND_COLOR.other);
+const FOLDER_FILL = ['transparent', 'var(--e1)', 'var(--e2)', 'var(--e3)', 'var(--e4)']; // elevation tints
+const svg = d3.select('#svg');
+const layer = svg.append('g');
+const gCircles = layer.append('g');
+const gContours = layer.append('g').style('pointer-events', 'none'); // inner contour line of each folder
+const gEdges = layer.append('g').style('pointer-events', 'none'); // lines never block clicks or drags
+const gLabels = layer.append('g');
+const gGhost = layer.append('g').attr('class', 'ghost');
+
+let DATA, root, focus, view, selected = null, W = 0, H = 0;
+let byPath = new Map(), importedBy = new Map(), violationsByFile = new Map();
+let picked = new Set(), pickedService = null; // selected methods inside one service
+const isService = (d) => d && d.data.type === 'file' && !!(d.children && d.children.length);
+const isMethod = (d) => d && d.data.type === 'method';
+const isServiceFile = (d) => d && d.data.type === 'file' && !!(DATA.services || {})[d.data.path]; // any @Injectable, even without methods
+const isContainer = (d) => d && (d.data.type === 'folder' || isService(d));
+
+// ---------- data ----------
+const TOKEN = (document.querySelector('meta[name="pm-token"]') || {}).content || '';
+async function api(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'content-type': 'application/json', 'x-floorplan-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
+  const json = await r.json();
+  if (!r.ok) throw new Error((json.errors || ['Request failed']).join('\n'));
+  return json;
+}
+
+function buildHierarchy(data) {
+  importedBy = new Map(); violationsByFile = new Map();
+  for (const f of data.files) for (const t of f.imports) {
+    if (!importedBy.has(t)) importedBy.set(t, []);
+    importedBy.get(t).push(f.path);
+  }
+  for (const v of data.violations) {
+    if (!violationsByFile.has(v.file)) violationsByFile.set(v.file, []);
+    violationsByFile.get(v.file).push(v);
+  }
+  const rootNode = { name: data.root, path: '', type: 'folder', children: [] };
+  const folders = new Map([['', rootNode]]);
+  const ensure = (p) => {
+    if (folders.has(p)) return folders.get(p);
+    const parent = ensure(p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
+    const node = { name: p.split('/').pop(), path: p, type: 'folder', children: [] };
+    parent.children.push(node); folders.set(p, node);
+    return node;
+  };
+  for (const p of Object.keys(data.folderInfo || {})) ensure(p);
+  for (const f of data.files) {
+    const dir = f.path.includes('/') ? f.path.slice(0, f.path.lastIndexOf('/')) : '';
+    const node = { ...f, label: f.path.split('/').pop(), type: 'file' };
+    const svc = (data.services || {})[f.path];
+    if (svc) { node.className = svc.className; node.fields = svc.fields; }
+    if (svc && svc.methods.length) {
+      node.children = svc.methods.map((m) => ({ ...m, type: 'method', label: m.name + '()', path: f.path + '#' + m.name, service: f.path }));
+    }
+    ensure(dir).children.push(node);
+  }
+  // a folder with only one subfolder and no files becomes one bubble: src/main/java/com/acme
+  const collapse = (node) => {
+    for (const c of node.children || []) {
+      if (c.type !== 'folder') continue;
+      while (c.children.length === 1 && c.children[0].type === 'folder') {
+        const only = c.children[0];
+        c.name = `${c.name}/${only.name}`; c.path = only.path; c.children = only.children;
+      }
+      collapse(c);
+    }
+  };
+  collapse(rootNode);
+  const h = d3.hierarchy(rootNode)
+    .sum((d) => d.type === 'method' ? 0.45 + Math.min(d.lines || 1, 30) / 40
+      : d.type === 'file' ? (d.children ? 0 : 1 + Math.min((importedBy.get(d.path) || []).length, 6) * 0.3)
+      : (d.children.length ? 0 : 0.6))
+    .sort((a, b) => (a.data.type === b.data.type ? a.data.name.localeCompare(b.data.name) : a.data.type === 'folder' ? -1 : 1));
+  d3.pack().size([1000, 1000]).padding((d) => (d.depth === 0 ? 16 : d.depth === 1 ? 26 : d.depth === 2 ? 20 : 14))(h);
+  h.each((d) => {
+    // free space between the top of a folder and its highest child, in layout units
+    d.topGap = d.children ? Math.min(...d.children.map((c) => c.y - c.r)) - (d.y - d.r) : d.r * 2;
+    d.violations = d.data.type === 'method' ? [] : d.data.type === 'file' ? (violationsByFile.get(d.data.path) || []) :
+      d.descendants().filter((l) => l.data.type !== 'method').flatMap((l) => violationsByFile.get(l.data.path) || []); // folder issues too (purpose, size, routed)
+  });
+  return h;
+}
+
+function load(data, keepFocusPath, selectPath) {
+  const first = !DATA;
+  DATA = data;
+  if (first) legend();
+  root = buildHierarchy(data);
+  byPath = new Map(root.descendants().map((d) => [d.data.path, d]));
+  focus = byPath.get(keepFocusPath) || root;
+  if (pickedService && !byPath.has(pickedService)) { picked = new Set(); pickedService = null; }
+  while (!focus.children) focus = focus.parent;
+  selected = selectPath && byPath.get(selectPath) ? byPath.get(selectPath) : (focus === root ? null : focus);
+  view = [focus.x, focus.y, focus.r * 2 + 20];
+  render();
+  zoomTo(view);
+  updateChrome();
+  showPanel(selected);
+}
+
+// ---------- rendering ----------
+function visibleDepth(d) { return isInFocus(d) && d.depth <= focus.depth + 3; }
+function isInFocus(d) { let n = d; while (n) { if (n === focus) return true; n = n.parent; } return false; }
+function interactive(d) { return d !== root && isInFocus(d) && d.depth > focus.depth && d.depth <= focus.depth + 2; }
+
+function ariaLabel(d) {
+  const n = d.violations && d.violations.length ? `, ${d.violations.length} rule issue${d.violations.length === 1 ? '' : 's'}` : '';
+  if (isMethod(d)) return `Method ${d.data.name}${d.data.visibility !== 'public' ? ' (private)' : ''}`;
+  if (d.data.type === 'folder') return `Folder ${d.data.name}${n}`;
+  return `${d.data.kind || 'file'} ${d.data.name}${n}`;
+}
+function render() {
+  const nodes = root.descendants().filter((d) => d !== root);
+  gCircles.selectAll('path.shape').data(nodes, (d) => d.data.path).join('path')
+    .attr('class', (d) => ['shape', d.data.type, isService(d) ? 'svc' : '', isMethod(d) && d.data.visibility !== 'public' ? 'priv' : '',
+      d.data.type === 'file' && d.violations.length ? 'bad' : '', d === selected ? 'selected' : ''].join(' '))
+    .attr('fill', (d) => isMethod(d) ? 'var(--sheet)'
+      : isService(d) ? `color-mix(in srgb, ${kindColor(d.data.kind)} 18%, var(--sheet))`
+      : d.data.type === 'file' ? kindColor(d.data.kind) : FOLDER_FILL[Math.min(d.depth, 4)])
+    .attr('role', 'button')
+    .attr('aria-label', ariaLabel)
+    .on('click', onClick)
+    .on('keydown', (event, d) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault(); event.stopPropagation();
+      onClick({ defaultPrevented: false, stopPropagation() {} }, d);
+      // keep keyboard focus on the opened node, or its first visible child
+      requestAnimationFrame(() => { const n = gCircles.selectAll('path.shape').filter((x) => x === d).node(); if (n) n.focus(); });
+    })
+    .call(drag);
+  gLabels.selectAll('g.lbl').data(root.descendants().filter((d) => d !== root), (d) => d.data.path).join((enter) => {
+    const g = enter.append('g').attr('class', 'lbl');
+    g.append('text').attr('class', 'name');
+    g.append('text').attr('class', 'sub');
+    return g;
+  });
+  gContours.selectAll('circle').data(nodes.filter((d) => d.data.type === 'folder'), (d) => d.data.path).join('circle')
+    .attr('fill', 'none').attr('stroke', 'var(--contour)').attr('stroke-width', 0.75).attr('stroke-opacity', 0.35);
+  applyVisibility();
+  drawEdges();
+}
+
+function applyVisibility() {
+  gContours.selectAll('circle').style('display', (d) => (visibleDepth(d) && d.depth <= focus.depth + 2 ? null : 'none'));
+  gCircles.selectAll('path.shape')
+    .style('display', (d) => (visibleDepth(d) ? null : 'none'))
+    .style('opacity', (d) => (d.depth > focus.depth + 2 ? 0.7 : 1))
+    .style('pointer-events', (d) => (interactive(d) ? null : 'none'))
+    .attr('tabindex', (d) => (interactive(d) && visibleDepth(d) && d.depth <= focus.depth + 1 ? 0 : -1))
+    .classed('selected', (d) => d === selected)
+    .classed('picked', (d) => isMethod(d) && d.data.service === pickedService && picked.has(d.data.name));
+}
+
+function labelText(d) {
+  if (d.data.type === 'folder') return d.data.name + '/';
+  if (isMethod(d)) return d.data.label;
+  return d.data.label.replace(/\.(ts|java)$/, '');
+}
+
+function zoomTo(v) {
+  view = v;
+  const k = Math.min(W, H) / v[2];
+  gCircles.selectAll('path.shape')
+    .attr('d', (d) => shapePath(shapeOf(d), (d.x - v[0]) * k + W / 2, (d.y - v[1]) * k + H / 2, Math.max(0, d.r * k)));
+  gContours.selectAll('circle')
+    .attr('cx', (d) => (d.x - v[0]) * k + W / 2)
+    .attr('cy', (d) => (d.y - v[1]) * k + H / 2)
+    .attr('r', (d) => Math.max(0, d.r * k - Math.min(6, Math.max(3, d.r * k * 0.04))));
+  gLabels.selectAll('g.lbl').each(function (d) {
+    const r = d.r * k, x = (d.x - v[0]) * k + W / 2, y = (d.y - v[1]) * k + H / 2;
+    const g = d3.select(this);
+    const rel = d.depth - focus.depth;
+    const near = rel === 1 || rel === 2 || (rel === 3 && d.data.type === 'file');
+    const show = visibleDepth(d) && near && r > (d.data.type === 'folder' ? (rel === 1 ? 34 : 56) : 24);
+    g.style('display', show ? null : 'none');
+    if (!show) return;
+    const isFolder = isContainer(d);
+    const fs = isFolder ? Math.min(15, 11 + r / 40) : Math.min(13, 9 + r / 18);
+    const maxChars = Math.max(4, Math.floor((r * 1.8) / (fs * 0.58)));
+    let text = labelText(d);
+    if (text.length > maxChars) text = text.slice(0, maxChars - 1) + '…';
+    const hasKids = isFolder && d.children && d.children.length;
+    const gap = hasKids ? d.topGap * k : Infinity;
+    // Not enough room inside? Put the name just above the bubble instead of on top of its children.
+    const ty = hasKids ? (gap < fs + 4 ? y - r - 5 : y - r + Math.min(gap, fs + 8) - 2) : y + (isFolder ? 0 : fs * 0.35);
+    g.select('text.name').attr('x', x).attr('y', ty).attr('text-anchor', 'middle')
+      .attr('font-size', fs).attr('font-weight', isFolder ? 650 : 550)
+      .attr('fill', isFolder || isMethod(d) ? 'var(--ink)' : '#fff').classed('on-color', !isFolder && !isMethod(d)).text(text);
+    const sub = isFolder ? folderSub(d) : '';
+    const subFits = !hasKids || gap > fs + 26;
+    g.select('text.sub').attr('x', x).attr('y', ty + fs + 2).attr('text-anchor', 'middle')
+      .attr('font-size', 12).attr('fill', d.violations.length ? 'var(--border-red)' : 'var(--ink-2)')
+      .style('display', sub && subFits && r > 60 ? null : 'none').text(sub);
+  });
+  drawEdges();
+}
+
+function folderSub(d) {
+  if (isService(d)) return `${d.children.length} method${d.children.length === 1 ? '' : 's'}`;
+  const files = d.descendants().filter((l) => l.data.type === 'file').length;
+  const v = d.violations.length;
+  return `${files} file${files === 1 ? '' : 's'}${v ? `, ${v} issue${v === 1 ? '' : 's'}` : ''}`;
+}
+
+function screenPos(d) {
+  const k = Math.min(W, H) / view[2];
+  return [(d.x - view[0]) * k + W / 2, (d.y - view[1]) * k + H / 2];
+}
+function visibleAncestor(d) {
+  let n = d;
+  while (n && !(visibleDepth(n) && n !== root)) n = n.parent;
+  return n;
+}
+
+function drawEdges() {
+  const edges = [];
+  if (selected && selected.data.type === 'file' && selected !== focus) {
+    for (const t of selected.data.imports) edges.push({ a: selected, b: byPath.get(t), dir: 'out' });
+    for (const s of importedBy.get(selected.data.path) || []) edges.push({ a: byPath.get(s), b: selected, dir: 'in' });
+  }
+  const paths = edges.filter((e) => e.a && e.b).map((e) => {
+    const a = visibleAncestor(e.a) || e.a, b = visibleAncestor(e.b) || e.b;
+    const [x1, y1] = screenPos(a), [x2, y2] = screenPos(b);
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1;
+    return { d: `M${x1},${y1} Q${mx - dy * 0.2},${my + dx * 0.2} ${x2},${y2}`, dir: e.dir, key: e.a.data.path + '>' + e.b.data.path };
+  });
+  gEdges.selectAll('path').data(paths, (p) => p.key).join('path')
+    .attr('class', (p) => 'edge ' + p.dir).attr('d', (p) => p.d).attr('marker-end', (p) => `url(#arrow-${p.dir})`);
+}
+
+function zoomToNode(d, duration = 650) {
+  focus = d;
+  applyVisibility();
+  const target = [d.x, d.y, d.r * 2 + 20];
+  svg.transition().duration(duration).tween('zoom', () => {
+    const i = d3.interpolateZoom(view, target);
+    return (t) => zoomTo(i(t));
+  });
+  updateChrome();
+}
+
+// ---------- interaction ----------
+function onClick(event, d) {
+  if (event.defaultPrevented) return;
+  event.stopPropagation();
+  // Drill down exactly one level: a click inside a child folder opens that child, not a grandchild.
+  // Files are always selected directly.
+  if (isContainer(d) && d.depth > focus.depth + 1 && isInFocus(d)) {
+    let top = d;
+    while (top.depth > focus.depth + 1) top = top.parent;
+    if (isContainer(top)) d = top;
+  }
+  if (isMethod(d)) {
+    // Inside the open service a click selects/deselects; from further out it opens the service first.
+    if (focus !== d.parent) { picked = new Set([d.data.name]); pickedService = d.parent.data.path; selected = d.parent; zoomToNode(d.parent); }
+    else togglePick(d);
+    applyVisibility(); showPanel(selected);
+    return;
+  }
+  if (isContainer(d)) {
+    if (isService(d) && pickedService !== d.data.path) { picked = new Set(); pickedService = d.data.path; }
+    selected = d; zoomToNode(d);
+  }
+  else {
+    selected = d;
+    if (!isInFocus(d) || d.depth > focus.depth + 2) zoomToNode(d.parent);
+    applyVisibility(); drawEdges();
+  }
+  showPanel(selected);
+}
+svg.on('click', () => {
+  if (focus.parent) { selected = focus.parent === root ? null : focus.parent; zoomToNode(focus.parent); showPanel(selected); }
+});
+window.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); document.getElementById('search').focus(); return; }
+  if (e.key === 'Escape' && carry) { stopCarry(); return; }
+  if (e.key === 'Escape' && !document.querySelector('.modal-bg') && focus.parent) {
+    selected = focus.parent === root ? null : focus.parent; zoomToNode(focus.parent); showPanel(selected);
+  }
+});
+
+function togglePick(d) {
+  if (pickedService !== d.data.service) { picked = new Set(); pickedService = d.data.service; }
+  if (picked.has(d.data.name)) picked.delete(d.data.name); else picked.add(d.data.name);
+  selected = d.parent;
+}
+
+function locate(path) {
+  const d = byPath.get(path);
+  if (!d) return;
+  selected = d;
+  if (isMethod(d)) { picked = new Set([d.data.name]); pickedService = d.data.service; selected = d.parent; zoomToNode(d.parent); showPanel(d.parent); return; }
+  zoomToNode(isContainer(d) ? d : d.parent);
+  showPanel(d);
+}
+
+// ---------- drag and drop ----------
+let dragState = null;
+const drag = d3.drag()
+  .filter((event, d) => !event.button && d !== root && interactive(d))
+  .subject((event) => ({ x: event.x, y: event.y }))
+  .clickDistance(6)
+  .on('start', (event, d) => {
+    dragState = { node: d, target: null, moved: false };
+    if (isMethod(d)) dragState.methods = pickedService === d.data.service && picked.has(d.data.name) ? [...picked] : [d.data.name];
+  })
+  .on('drag', (event, d) => {
+    if (!dragState.moved) {
+      dragState.moved = true;
+      const k = Math.min(W, H) / view[2];
+      const r = Math.min(40, Math.max(14, d.r * k));
+      gGhost.selectAll('*').remove();
+      const ms = dragState.methods;
+      gGhost.append('path').attr('d', shapePath(ms ? 'pill' : shapeOf(d), 0, 0, ms ? 22 : r)).attr('fill', ms ? 'var(--water-soft)' : d.data.type === 'file' ? kindColor(d.data.kind) : 'var(--e3)');
+      gGhost.append('text').attr('y', (ms ? 18 : r) + 16).attr('text-anchor', 'middle').attr('font-size', 13).attr('fill', 'var(--ink)')
+        .text(ms ? (ms.length === 1 ? ms[0] + '()' : `${ms.length} methods`) : labelText(d));
+    }
+    gGhost.attr('transform', `translate(${event.x},${event.y})`);
+    const t = folderAt(event.x, event.y, d, event.sourceEvent, !!dragState.methods);
+    dragState.target = t;
+    gCircles.selectAll('path.shape').classed('drop', (c) => c === t && t !== d.parent).classed('drop-same', (c) => c === t && t === d.parent);
+  })
+  .on('end', (event, d) => {
+    gGhost.selectAll('*').remove();
+    gCircles.selectAll('path.shape').classed('drop', false).classed('drop-same', false);
+    document.querySelectorAll('#crumbs button').forEach((b) => b.classList.remove('drop'));
+    const t = dragState && dragState.target;
+    const moved = dragState && dragState.moved;
+    const ms = dragState && dragState.methods;
+    dragState = null;
+    if (!moved || !t || t === d.parent) return;
+    if (ms) methodsDropped(d.parent, ms, t);
+    else previewMove(d, t);
+  });
+
+function folderAt(x, y, dragged, sourceEvent, forMethods) {
+  const accepts = (n) => n.data.type === 'folder' || (forMethods && isServiceFile(n) && n !== dragged.parent);
+  // 1) A breadcrumb item under the pointer: drop into that folder (works for any parent level).
+  const se = sourceEvent && (sourceEvent.touches ? sourceEvent.touches[0] : sourceEvent);
+  document.querySelectorAll('#crumbs button').forEach((b) => b.classList.remove('drop'));
+  if (se) {
+    const el = document.elementFromPoint(se.clientX, se.clientY);
+    const btn = el && el.closest && el.closest('#crumbs button');
+    if (btn) {
+      const n = byPath.get(btn.dataset.p);
+      if (n && n !== dragged && !isAncestorOf(dragged, n) && accepts(n)) { btn.classList.add('drop'); return n; }
+      return null;
+    }
+  }
+  // 2) Otherwise the deepest visible folder bubble under the pointer (never a hidden or off-screen one).
+  const k = Math.min(W, H) / view[2];
+  let best = null;
+  root.each((n) => {
+    if (!accepts(n) || !visibleDepth(n)) return;
+    if (n === dragged || isAncestorOf(dragged, n)) return;
+    const [cx, cy] = screenPos(n);
+    if (Math.hypot(x - cx, y - cy) <= n.r * k && (!best || n.depth > best.depth)) best = n;
+  });
+  return best;
+}
+function isAncestorOf(a, b) { let n = b.parent; while (n) { if (n === a) return true; n = n.parent; } return false; }
+
+// ---------- move preview ----------
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const short = (p) => (DATA && p.startsWith(DATA.root + '/') ? p.slice(DATA.root.length + 1) : p.replace(/^src\/app\//, ''));
+
+async function previewMove(node, target, extra = {}) {
+  const body = { source: node.data.path, target: target.data.path, ...extra };
+  const what = node.data.type === 'file' ? node.data.label : node.data.name + '/';
+  const where = (target.data.path || DATA.root) + '/';
+  openModal(`<header><h1>Move ${esc(what)} → ${esc(where)}</h1></header><div class="body"><p class="hint">Preparing preview…</p></div>`);
+  let plan;
+  try { plan = await api('POST', '/api/plan', body); }
+  catch (e) {
+    return openModal(`<header><h1>Can't move ${esc(what)}</h1></header><div class="body"><p class="error">${esc(e.message)}</p></div>
+      <footer><button class="btn" data-close>Close</button></footer>`);
+  }
+  const moves = plan.moves.map((m) => `<div class="row"><code class="from">${esc(short(m.from))}</code><br><code class="to">${esc(short(m.to))}</code></div>`).join('');
+  const change = (c) => c.from === '(added)' ? `<br><span class="tag info">added</span><code class="to">${esc(c.to)}</code>`
+    : c.to.startsWith('(removed') ? `<br><span class="tag info">removed</span><code class="from">${esc(c.from)}</code> <span class="hint">${esc(c.to.replace(/^\(removed: ?|\)$/g, ''))}</span>`
+    : `<br><code class="from">${esc(c.from)}</code> → <code class="to">${esc(c.to)}</code>`;
+  const edits = plan.edits.map((e) => `<div class="row"><code>${esc(short(e.file))}</code>${e.changes.map(change).join('')}</div>`).join('');
+  const warn = plan.warnings.map((w) => `<div class="viol"><b>Check:</b> ${esc(w)}</div>`).join('');
+  const issues = node.violations.length ? `<div class="viol"><b>${node.violations.length} rule issue${node.violations.length > 1 ? 's' : ''}</b> on this ${node.data.type} today. The map re-checks the rules after the move.</div>` : '';
+  openModal(`<header><h1>Move ${esc(what)} → ${esc(where)}</h1></header>
+    <div class="body">${issues}${warn}
+      <h4>${plan.moves.length} file${plan.moves.length === 1 ? '' : 's'} to move</h4>${moves}
+      <h4>${plan.importCount} import${plan.importCount === 1 ? '' : 's'} to rewrite</h4>${edits || '<p class="hint">No imports point to these files.</p>'}
+    </div>
+    <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="confirm">Move files</button></footer>`);
+  document.getElementById('confirm').onclick = async () => {
+    document.getElementById('confirm').disabled = true;
+    try {
+      const before = DATA.violations.length;
+      const res = await api('POST', '/api/move', body);
+      closeModal();
+      const newPath = (target.data.path ? target.data.path + '/' : '') + (node.data.type === 'file' ? node.data.label : node.data.name);
+      load(res.map, target.data.path, newPath);
+      const after = res.map.violations.length;
+      toast(`Moved ${res.result.moves.length} file${res.result.moves.length === 1 ? '' : 's'} and rewrote ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'}. Rule issues: ${before} before, ${after} now.`, true);
+    } catch (e) {
+      openModal(`<header><h1>Move failed</h1></header><div class="body"><p class="error">${esc(e.message)}</p></div><footer><button class="btn" data-close>Close</button></footer>`);
+    }
+  };
+}
+
+// ---------- method move preview (analysis only, nothing is changed) ----------
+function suggestServiceName(serviceNode, methods) {
+  const base = (serviceNode.data.className || 'Feature').replace(/Service$/, '');
+  const word = (methods[0].match(/^[a-z]+/) || ['Extra'])[0];
+  return base + word[0].toUpperCase() + word.slice(1) + 'Service';
+}
+function methodsDropped(serviceNode, methods, target) {
+  if (isServiceFile(target)) return previewMethodMove(serviceNode, methods, { file: target.data.path }, target.data.className);
+  const folder = target || root;
+  openModal(`<header><h1>New service in ${esc((folder.data.path || DATA.root) + '/')}</h1></header>
+    <div class="body"><p>Name of the new service for ${methods.length === 1 ? `<code>${esc(methods[0])}()</code>` : methods.length + ' methods'}:</p>
+    <input class="name" id="svcName" value="${esc(suggestServiceName(serviceNode, methods))}" spellcheck="false"></div>
+    <footer><button class="btn" data-close>Cancel</button><button class="btn primary" id="svcOk">Show impact</button></footer>`);
+  const input = document.getElementById('svcName');
+  input.focus(); input.select();
+  const go = () => previewMethodMove(serviceNode, methods, { folder: folder.data.path, className: input.value.trim() }, input.value.trim() + ' (new)');
+  document.getElementById('svcOk').onclick = go;
+  input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
+}
+
+async function previewMethodMove(serviceNode, methods, target, targetLabel) {
+  const title = `Move ${methods.length === 1 ? methods[0] + '()' : methods.length + ' methods'} → ${targetLabel}`;
+  openModal(`<header><h1>${esc(title)}</h1></header><div class="body"><p class="hint">${SPRING() ? 'Analyzing the Java code…' : 'Analyzing with the TypeScript compiler…'}</p></div>`);
+  let p;
+  try { p = await api('POST', '/api/methods/plan', { source: serviceNode.data.path, methods, target }); }
+  catch (e) {
+    return openModal(`<header><h1>${esc(title)}</h1></header><div class="body"><p class="error">${esc(e.message)}</p></div><footer><button class="btn" data-close>Close</button></footer>`);
+  }
+  const s = p.summary;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const chips = [plural(s.methods, 'method'), s.helpers ? `${plural(s.helpers, 'helper')} move along` : '',
+    `${plural(s.callSites, 'call site')} in ${plural(s.callerFiles, 'file')}`, s.specFiles ? plural(s.specFiles, 'test file') : '',
+    s.blockers ? `<b>${plural(s.blockers, 'blocker')}</b>` : '', s.decide ? plural(s.decide, 'decision') : '']
+    .filter(Boolean).map((c) => `<span class="${c.startsWith('<b>') ? 'bad' : ''}">${c}</span>`).join('');
+  const decisions = p.decisions.map((d) => `<div class="decision ${d.severity}"><span class="tag ${d.severity}">${d.severity === 'blocker' ? 'Blocker' : 'Decide'}</span>${esc(d.message)}
+    ${d.options ? `<ul>${d.options.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}</div>`).join('');
+  const sig = p.methods.map((m) => `<div class="row"><code>${esc(m.signature || m.name)}</code></div>`).join('');
+  const along = [...p.movesAlong.helpers.map((h) => `<div class="row"><span class="tag info">helper</span><code>${esc(h.signature || h.name)}</code></div>`),
+    ...p.movesAlong.state.map((x) => `<div class="row"><span class="tag info">state</span><code>${esc(x.field)}${x.init ? ' = ' + esc(x.init) : ''}</code></div>`)].join('');
+  const deps = p.dependencies.map((d) => `<div class="row"><code>${esc(d.token)}</code> — ${d.alreadyInTarget ? 'already injected in the target' : 'inject in the target'}${d.stillUsedInSource ? '' : `; <span class="hint">no longer needed in ${esc(p.source.className)}</span>`}</div>`).join('');
+  const callers = p.methods.flatMap((m) => [
+    ...m.callers.map((c) => `<div class="row"><code>${esc(short(c.file))}:${c.line}</code><br><code class="hint">${esc(c.text)}</code></div>`),
+    ...m.templateUses.map((c) => `<div class="row"><span class="tag info">template</span><code>${esc(short(c.file))}:${c.line}</code><br><code class="hint">${esc(c.text)}</code></div>`),
+  ]).join('');
+  const specs = [...new Set(p.methods.flatMap((m) => m.specMentions.map((c) => c.file)))].map((f) => `<div class="row"><code>${esc(short(f))}</code></div>`).join('');
+  const internal = p.methods.filter((m) => m.internalCallers.length).map((m) => `<div class="row"><code>${esc(m.name)}</code> is still called by ${esc(m.internalCallers.join(', '))} in ${esc(p.source.className)}</div>`).join('');
+  const dir = p.direction;
+  const dirHtml = `<div class="dirline">${dir.sourceNeedsTarget ? `${esc(p.source.className)} → ${esc(p.target.className)} <span class="hint">(${esc(dir.sourceWhy)})</span>` : `${esc(p.source.className)} does not need ${esc(p.target.className)}`}</div>
+    <div class="dirline">${dir.targetNeedsSource ? `${esc(p.target.className)} → ${esc(p.source.className)} <span class="hint">(${esc(dir.targetWhy)})</span>` : `${esc(p.target.className)} does not need ${esc(p.source.className)}`}</div>
+    ${dir.cycle ? '<div class="viol"><b>Circular dependency</b> if moved as is.</div>' : ''}`;
+  openModal(`<header><h1>${esc(title)}</h1></header>
+    <div class="body">
+      <div class="chips">${chips}</div>
+      ${decisions ? `<h4>Needs a decision first</h4>${decisions}` : ''}
+      <h4>Methods that move</h4>${sig}
+      ${along ? `<h4>Moves along automatically</h4>${along}` : ''}
+      ${deps ? `<h4>${esc(p.target.className)} needs</h4>${deps}` : ''}
+      <h4>Callers to update</h4>${callers || '<p class="hint">No callers outside the service.</p>'}${internal}
+      ${specs ? `<h4>${SPRING() ? 'Tests that call or mock these methods' : 'Test mocks that mention these methods'}</h4>${specs}` : ''}
+      <h4>Dependency direction after the move</h4>${dirHtml}
+      <h4>Task for Claude</h4><pre class="task" id="task">${esc(p.claudeTask)}</pre>
+    </div>
+    <footer><span class="preview-note">Preview only. Nothing has been changed.</span><button class="btn" data-close>Close</button><button class="btn primary" id="copyTask">Copy task for Claude</button></footer>`);
+  document.getElementById('copyTask').onclick = async () => {
+    try { await navigator.clipboard.writeText(p.claudeTask); toast('Task copied. Paste it into Claude Code in this repo.'); }
+    catch { const r = document.createRange(); r.selectNodeContents(document.getElementById('task')); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Select-all done: press Ctrl/Cmd+C to copy.'); }
+  };
+}
+
+function openModal(html) {
+  const m = document.getElementById('modal');
+  m.innerHTML = `<div class="modal-bg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  m.querySelectorAll('[data-close]').forEach((b) => (b.onclick = closeModal));
+  m.querySelector('.modal-bg').onclick = (e) => { if (e.target.classList.contains('modal-bg')) closeModal(); };
+}
+function closeModal() { document.getElementById('modal').innerHTML = ''; }
+
+let toastTimer;
+function toast(msg, withUndo) {
+  const t = document.getElementById('toast');
+  t.innerHTML = `<div class="toast"><span>${esc(msg)}</span>${withUndo ? '<button id="toastUndo">Undo</button>' : ''}</div>`;
+  if (withUndo) document.getElementById('toastUndo').onclick = undo;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (t.innerHTML = ''), 6000);
+}
+
+async function undo() {
+  try {
+    const res = await api('POST', '/api/undo');
+    load(res.map, focus.data.path);
+    toast(`Undone: ${res.undone}. ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'} restored.`);
+  } catch (e) { toast(e.message); }
+}
+document.getElementById('undo').onclick = undo;
+
+// ---------- chrome: breadcrumb, stats, legend, search ----------
+function updateChrome() {
+  const trail = focus.ancestors().reverse();
+  document.getElementById('crumbs').innerHTML = trail.map((d, i) =>
+    `${i ? '<span>/</span>' : ''}<button ${d === focus ? 'disabled' : ''} data-p="${esc(d.data.path)}">${esc(d === root ? DATA.root : isService(d) ? d.data.className : d.data.name)}</button>`).join('');
+  document.querySelectorAll('#crumbs button').forEach((b) => (b.onclick = () => {
+    const d = byPath.get(b.dataset.p); selected = d === root ? null : d; zoomToNode(d); showPanel(selected);
+  }));
+  const v = DATA.violations.length;
+  const nb = DATA.branch && DATA.branch.available ? DATA.branch.newIssues.length : null;
+  document.getElementById('stats').innerHTML = `<span class="pill"><b>${DATA.files.length}</b> files</span>`
+    + `<span class="pill ${v ? '' : 'good'}" title="Rule issues in the working tree"><b>${v}</b> issue${v === 1 ? '' : 's'}</span>`
+    + (nb !== null ? `<span class="pill ${nb ? 'bad' : 'good'}" title="Rule issues this branch introduced compared with main"><b>${nb}</b> new on this branch</span>` : '');
+  document.getElementById('subtitle').textContent = `${SPRING() ? 'Spring Boot' : 'Angular'}, ${DATA.root}`;
+  document.getElementById('undo').disabled = !(DATA.history && DATA.history.length);
+  document.getElementById('undo').title = DATA.history && DATA.history.length ? `Undo: ${DATA.history.at(-1)}` : 'Nothing to undo';
+}
+
+function legend() {
+  const items = SPRING()
+    ? [['controller', 'Controller'], ['service', 'Service'], ['repository', 'Repository'], ['entity', 'Entity'], ['dto', 'DTO / mapper'],
+      ['listener', 'Listener'], ['config', 'Config / component'], ['model', 'Model / other']]
+    : [['component', 'Component'], ['service', 'Service'], ['routes', 'Routes'], ['guard', 'Guard / interceptor'],
+      ['pipe', 'Pipe / directive'], ['store', 'State'], ['model', 'Model']];
+  const el = document.getElementById('legend');
+  el.innerHTML = `<button class="toggle" type="button">Hide</button><div class="items">` + items.map(([k, l]) => `<span><svg class="glyph" viewBox="-9 -9 18 18" aria-hidden="true"><path d="${shapePath(shapeOf({ data: { type: 'file', kind: k } }), 0, 0, 8)}" fill="${kindColor(k)}"/></svg>${l}</span>`).join('') +
+    `<span><i style="border:2px dashed var(--border-red);width:12px;height:12px"></i>Rule issue</span>` +
+    `<span><i style="border:2px solid var(--k-service);background:var(--sheet);width:12px;height:12px"></i>Method (dashed: private)</span>` +
+    `</div><div class="tip">Click to drill down. Drag onto a ${SPRING() ? 'package' : 'folder'} or a breadcrumb to move. Open a service to move its methods.</div>`;
+  el.querySelector('.toggle').onclick = () => { el.classList.toggle('closed'); el.querySelector('.toggle').textContent = el.classList.contains('closed') ? 'Show legend' : 'Hide'; };
+}
+
+const search = document.getElementById('search'), results = document.getElementById('results');
+let hits = [], active = 0;
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  hits = q ? root.descendants().filter((d) => d !== root && d.data.path.toLowerCase().includes(q)).slice(0, 12) : [];
+  active = 0; renderHits();
+});
+search.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown') { active = Math.min(hits.length - 1, active + 1); renderHits(); e.preventDefault(); }
+  if (e.key === 'ArrowUp') { active = Math.max(0, active - 1); renderHits(); e.preventDefault(); }
+  if (e.key === 'Enter' && hits[active]) pick(hits[active]);
+  if (e.key === 'Escape') { search.value = ''; hits = []; renderHits(); }
+});
+function renderHits() {
+  results.hidden = !hits.length;
+  results.innerHTML = hits.map((d, i) => `<li class="${i === active ? 'active' : ''}" data-i="${i}">${esc(labelText(d))}<small>${esc(d.data.path)}</small></li>`).join('');
+  results.querySelectorAll('li').forEach((li) => (li.onmousedown = () => pick(hits[+li.dataset.i])));
+}
+function pick(d) { search.value = ''; hits = []; renderHits(); locate(d.data.path); }
+
+// ---------- move by picking up (for targets that are not on screen) ----------
+let carry = null;
+function startCarry(d) {
+  carry = d;
+  const el = document.getElementById('carry');
+  el.hidden = false;
+  el.innerHTML = `<span>Moving <b>${esc(labelText(d))}</b>: open the target folder, then press <b>Move here</b>.</span><button id="carryCancel">Cancel</button>`;
+  document.getElementById('carryCancel').onclick = stopCarry;
+  showPanel(selected);
+}
+function stopCarry() { carry = null; document.getElementById('carry').hidden = true; showPanel(selected); }
+function startMethodCarry(serviceNode, methods) {
+  carry = { methods, service: serviceNode };
+  const el = document.getElementById('carry');
+  el.hidden = false;
+  el.innerHTML = `<span>Moving <b>${methods.length === 1 ? esc(methods[0]) + '()' : methods.length + ' methods'}</b> from ${esc(serviceNode.data.className)}: open another service or a folder, then choose it.</span><button id="carryCancel">Cancel</button>`;
+  document.getElementById('carryCancel').onclick = stopCarry;
+  showPanel(selected);
+}
+function carryAction(folder) {
+  if (carry && carry.methods) {
+    const n = folder || root;
+    if (isServiceFile(n) && n !== carry.service) return `<div class="actions"><button class="btn primary" id="methodsHere">Move ${carry.methods.length} method${carry.methods.length === 1 ? '' : 's'} into ${esc(n.data.className)}</button></div>`;
+    if (n.data.type === 'folder') return `<div class="actions"><button class="btn primary" id="methodsNew">Create a new service here…</button></div>`;
+    return '';
+  }
+  if (!carry || folder === carry || isAncestorOf(carry, folder) || carry.parent === folder) return '';
+  if ((folder || root).data.type !== 'folder') return ''; // files and folders only move into folders
+  return `<div class="actions"><button class="btn primary" id="moveHere">Move ${esc(labelText(carry))} here</button></div>`;
+}
+// "Fix" for placement issues: move the file where the map suggests (preview first, like every move)
+function fixButton(x) {
+  return x.fix ? `<button class="btn small" data-fix="${esc(x.file)}" data-target="${esc(x.fix.target)}" data-create="${x.fix.create ? 1 : ''}">Fix: move to ${esc(x.fix.target)}/</button>` : '';
+}
+function bindFixes(el) {
+  el.querySelectorAll('[data-fix]').forEach((b) => (b.onclick = () => {
+    const node = byPath.get(b.dataset.fix);
+    if (!node) return;
+    const target = byPath.get(b.dataset.target) || { data: { path: b.dataset.target, type: 'folder', name: b.dataset.target.split('/').pop() } };
+    previewMove(node, target, b.dataset.create ? { create: true } : {});
+  }));
+}
+function bindActions(d) {
+  const mh2 = document.getElementById('methodsHere');
+  if (mh2) mh2.onclick = () => { const c = carry; stopCarry(); methodsDropped(c.service, c.methods, d); };
+  const mn = document.getElementById('methodsNew');
+  if (mn) mn.onclick = () => { const c = carry; stopCarry(); methodsDropped(c.service, c.methods, d || root); };
+  const mc = document.getElementById('methodsCarry');
+  if (mc) mc.onclick = () => startMethodCarry(d, [...picked]);
+  document.querySelectorAll('.mlist input[type=checkbox]').forEach((cb) => (cb.onchange = () => {
+    if (pickedService !== d.data.path) { picked = new Set(); pickedService = d.data.path; }
+    if (cb.checked) picked.add(cb.value); else picked.delete(cb.value);
+    applyVisibility(); showPanel(d);
+  }));
+  const mh = document.getElementById('moveHere');
+  if (mh) mh.onclick = () => { const c = carry; stopCarry(); previewMove(c, d || root); };
+  const pk = document.getElementById('pickUp');
+  if (pk) pk.onclick = () => startCarry(d);
+}
+
+// ---------- branch report (this branch vs main) ----------
+function branchSection() {
+  const b = DATA.branch;
+  if (!b || !b.available) return b && b.note ? `<h3>This branch</h3><p class="hint">${esc(b.note)}</p>` : '';
+  const vs = b.source === 'merge-base' ? `${esc(b.base)} at ${esc(b.mergeBase)}${b.ahead ? ` (${b.ahead} newer commit${b.ahead === 1 ? '' : 's'} on ${esc(b.base)})` : ''}` : 'the committed main map';
+  // new issues: the full card (source, why, how to fix); fixed ones: short
+  const issue = (x, cls) => cls === 'ok'
+    ? `<div class="viol fixed"><b>Fixed: ${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span></div>`
+    : issueCard(x).replace('<b>', '<b>New: ');
+  const onBase = b.base && (b.branch === b.base || `origin/${b.branch}` === b.base);
+  return `<h3>${onBase ? `You are on ${esc(b.branch)}` : `Branch ${esc(b.branch || '')} compared with ${vs}`}</h3>
+    <div class="chips"><span>${b.added.length} added</span><span>${b.moved.length} moved</span><span>${b.deleted.length} deleted</span><span>${b.modified.length} modified</span>
+    <span class="${b.newIssues.length ? 'bad' : ''}">${b.newIssues.length} new issue${b.newIssues.length === 1 ? '' : 's'}</span>${b.fixedIssues.length ? `<span>${b.fixedIssues.length} fixed</span>` : ''}</div>
+    ${b.newIssues.map((x) => issue(x, 'bad')).join('')}${b.fixedIssues.map((x) => issue(x, 'ok')).join('')}`;
+}
+
+// ---------- rule issues ----------
+let issueFilter = { rule: '', sev: 'all' };
+function issueCard(x, opts = {}) {
+  const cls = x.accepted ? 'accepted' : x.severity === 'warn' ? 'warn' : '';
+  const extra = [x.typeOnly ? 'types only' : '', x.note || '', x.errorFrom ? `warning until ${x.errorFrom}` : ''].filter(Boolean).join(' · ');
+  return `<div class="viol ${cls}"><b>${esc(x.rule)}</b><span class="sev">${x.accepted ? 'accepted' : x.severity === 'warn' ? 'warning' : 'error'}</span><br>
+    ${opts.noFile ? '' : `${fileLink(x.file)}${x.line ? `<span class="hint">:${x.line}</span>` : ''}<br>`}<span class="hint">${opts.noFile && x.line ? `line ${x.line}: ` : ''}${esc(x.detail)}${extra ? ` (${esc(extra)})` : ''}</span>
+    ${x.message && opts.message !== false ? `<div class="why">${esc(x.message)}</div>` : ''}
+    ${x.source ? `<div class="src">From ${esc(x.source)}${x.quote ? `: <q>${esc(x.quote)}</q>` : ''}</div>` : ''}
+    ${x.why ? `<div class="why">Why: ${esc(x.why)}</div>` : ''}${x.accepted ? `<div class="why">Accepted: ${esc(x.accepted)}</div>` : ''}
+    ${x.howToFix && !x.accepted ? `<div class="howto"><b>How to fix:</b> ${esc(x.howToFix).replace(/`([^`]+)`/g, '<code>$1</code>')}</div>` : ''}
+    ${x.docs && /^https?:\/\//.test(x.docs) ? `<div class="why"><a href="${esc(x.docs)}" target="_blank" rel="noopener noreferrer">Rule docs</a></div>` : ''}
+    ${x.accepted ? '' : fixButton(x)}</div>`;
+}
+function issuesSection() {
+  const all = DATA.violations;
+  const rules = [...new Set(all.map((v) => v.rule))].sort();
+  const shown = all.filter((v) => (!issueFilter.rule || v.rule === issueFilter.rule) && (issueFilter.sev === 'all' || (issueFilter.sev === 'error') === (v.severity === 'error')));
+  const nErr = all.filter((v) => v.severity === 'error').length;
+  const acc = DATA.accepted || [];
+  return `<h3>Rule issues (${all.length}${nErr !== all.length ? `: ${nErr} error${nErr === 1 ? '' : 's'}, ${all.length - nErr} warning${all.length - nErr === 1 ? '' : 's'}` : ''})</h3>
+    ${all.length > 3 ? `<div class="issue-filter"><select id="issueRule" aria-label="Filter by rule"><option value="">All rules</option>${rules.map((r) => `<option value="${esc(r)}" ${r === issueFilter.rule ? 'selected' : ''}>${esc(r)} (${all.filter((v) => v.rule === r).length})</option>`).join('')}</select>
+      ${['all', 'error', 'warn'].map((k) => `<label><input type="radio" name="sev" value="${k}" ${issueFilter.sev === k ? 'checked' : ''}>${k === 'all' ? 'all' : k === 'error' ? 'errors' : 'warnings'}</label>`).join('')}</div>` : ''}
+    ${all.length ? shown.map((x) => issueCard(x)).join('') || '<p class="hint">No issue matches the filter.</p>' : '<p class="hint">None. The structure follows all rules.</p>'}
+    ${acc.length ? `<details><summary class="hint">${acc.length} accepted exception${acc.length === 1 ? '' : 's'}</summary>${acc.map((x) => issueCard(x)).join('')}</details>` : ''}`;
+}
+function bindIssueFilter(el) {
+  const sel = el.querySelector('#issueRule');
+  if (sel) sel.onchange = () => { issueFilter.rule = sel.value; showPanel(selected); };
+  el.querySelectorAll('input[name="sev"]').forEach((r) => (r.onchange = () => { issueFilter.sev = r.value; showPanel(selected); }));
+}
+
+// ---------- save the view as an image ----------
+function svgSnapshot() {
+  const src = document.getElementById('svg');
+  const box = src.getBoundingClientRect();
+  const clone = src.cloneNode(true);
+  const a = src.querySelectorAll('*'), b = clone.querySelectorAll('*');
+  const props = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'opacity', 'font-family', 'font-size', 'font-weight', 'paint-order', 'stroke-linejoin', 'text-anchor', 'dominant-baseline'];
+  const hidden = [];
+  a.forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') { hidden.push(b[i]); return; }
+    b[i].setAttribute('style', props.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(';'));
+    b[i].removeAttribute('class'); b[i].removeAttribute('tabindex');
+  });
+  hidden.forEach((n) => n.remove());
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', box.width); clone.setAttribute('height', box.height);
+  clone.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', getComputedStyle(document.getElementById('canvas')).backgroundColor || '#fff');
+  clone.insertBefore(bg, clone.firstChild);
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  title.setAttribute('x', 14); title.setAttribute('y', box.height - 14);
+  title.setAttribute('style', `font-family:sans-serif;font-size:13px;fill:${getComputedStyle(document.body).color}`);
+  title.textContent = `${DATA.root}${focus && focus !== root ? '/' + focus.data.path : ''} · project map`;
+  clone.appendChild(title);
+  return { text: new XMLSerializer().serializeToString(clone), width: box.width, height: box.height };
+}
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function saveImage(kind) {
+  const snap = svgSnapshot();
+  const base = `floorplan-${(focus && focus !== root ? focus.data.path : 'root').replace(/[^\w-]+/g, '-')}`;
+  if (kind === 'svg') { download(new Blob([snap.text], { type: 'image/svg+xml' }), `${base}.svg`); return; }
+  const img = new Image();
+  const url = URL.createObjectURL(new Blob([snap.text], { type: 'image/svg+xml' }));
+  img.onload = () => {
+    const c = document.createElement('canvas'); const k = 2;
+    c.width = snap.width * k; c.height = snap.height * k;
+    const g = c.getContext('2d'); g.scale(k, k); g.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    c.toBlob((b) => download(b, `${base}.png`), 'image/png');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Could not render the PNG; saving SVG instead.'); download(new Blob([snap.text], { type: 'image/svg+xml' }), `${base}.svg`); };
+  img.src = url;
+}
+document.getElementById('exportBtn').onclick = () => {
+  openModal(`<header>Save the current view</header><p class="hint">What you see now (folder, zoom, selection), as an image for a pull request or a slide.</p>
+    <div class="actions"><button class="btn primary" id="savePng">PNG</button><button class="btn" id="saveSvg">SVG</button><button class="btn" data-close>Cancel</button></div>`);
+  document.getElementById('savePng').onclick = () => { closeModal(); saveImage('png'); };
+  document.getElementById('saveSvg').onclick = () => { closeModal(); saveImage('svg'); };
+};
+
+// ---------- side panel ----------
+function fileLink(p) { return `<a data-loc="${esc(p)}">${esc(p)}</a>`; }
+function showPanel(d) {
+  const el = document.getElementById('panel');
+  if (isMethod(d)) d = d.parent;
+  if (!d) {
+    const v = DATA.violations;
+    const areas = Object.entries(DATA.areas || {}).map(([a, deps]) => `<li><b>${esc(a)}</b> → ${esc(deps.join(', ') || '(none)')}</li>`).join('');
+    el.innerHTML = `<h2>${esc(DATA.root)}</h2><div class="path">${DATA.files.length} source files</div>${carryAction(root)}
+      ${branchSection()}
+      ${issuesSection()}
+      <h3>Dependencies between areas</h3><ul>${areas}</ul>
+      <h3>How to use</h3><p class="hint">Click a folder to drill down, the background to go up. Click a file to see what it imports (blue) and what imports it (orange). Drag a file or folder onto another folder to move it: you get a preview of every file and import that will change before anything happens.</p>`;
+  } else if (d.data.type === 'folder') {
+    const info = (DATA.folderInfo || {})[d.data.path];
+    const kids = (d.children || []).map((c) => `<li>${fileLink(c.data.path)}${c.data.type === 'folder' ? '/' : ''}</li>`).join('');
+    el.innerHTML = `<h2>${esc(d.data.name)}/</h2><div class="path">${esc(DATA.root)}/${esc(d.data.path)}</div>
+      ${info && info.purpose ? `<div class="purpose">${esc(info.purpose)}${info.owner ? `<br><span class="hint">Owner: ${esc(info.owner)}</span>` : ''}</div>` : '<p class="hint">No purpose described yet. Add it in floorplan.config.mjs.</p>'}
+      ${carry ? carryAction(d) : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
+      ${d.violations.length ? `<h3>Rule issues inside (${d.violations.length})</h3>` + d.violations.map((x) => issueCard(x, { message: false })).join('') : ''}
+      <h3>Contains</h3><ul>${kids || '<li class="hint">Empty folder</li>'}</ul>`;
+  } else if (isService(d)) {
+    const f = d.data;
+    const info = (DATA.folderInfo || {})[d.parent.data.path];
+    const mine = pickedService === f.path ? picked : new Set();
+    const rows = d.children.map((m) => `<label><input type="checkbox" value="${esc(m.data.name)}" ${mine.has(m.data.name) ? 'checked' : ''}>
+      <code>${esc(m.data.name)}()</code><span class="vis">${esc(m.data.visibility)}, ${m.data.lines} line${m.data.lines === 1 ? '' : 's'}</span></label>`).join('');
+    const deps = (f.fields || []).filter((x) => x.kind === 'dependency').map((x) => x.token);
+    el.innerHTML = `<h2>${esc(f.className)}</h2><div class="path">${esc(DATA.root)}/${esc(f.path)}</div>
+      ${info && info.purpose ? `<div class="purpose"><span class="hint">Folder:</span> ${esc(info.purpose)}</div>` : ''}
+      ${carry ? carryAction(d) : ''}
+      ${deps.length ? `<p class="hint">Injects: ${esc(deps.join(', '))}</p>` : ''}
+      <h3>Methods (${d.children.length}), ${mine.size} selected</h3>
+      <div class="mlist">${rows}</div>
+      ${!carry && mine.size ? `<div class="actions"><button class="btn primary" id="methodsCarry">Move ${mine.size} selected to…</button></div>
+        <p class="hint">Or drag a selected bubble onto another service, a folder, or a breadcrumb.</p>` : (!carry ? '<p class="hint">Select the methods to move, by clicking their bubbles or ticking them here.</p>' : '')}
+      ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move file to another folder…</button></div>'}
+      ${d.violations.map((x) => issueCard(x, { noFile: true })).join('')}
+      <h3>Imported by (${(importedBy.get(f.path) || []).length})</h3><ul>${(importedBy.get(f.path) || []).map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
+  } else {
+    const f = d.data;
+    const info = (DATA.folderInfo || {})[d.parent.data.path];
+    const ins = importedBy.get(f.path) || [];
+    el.innerHTML = `<h2>${esc(f.label)}</h2><div class="path">${esc(DATA.root)}/${esc(f.path)}</div>
+      <p><span class="chip" style="background:${kindColor(f.kind)}">${esc(f.kind)}</span>${f.selector ? ` <code>${esc(f.selector)}</code>` : ''}</p>
+      ${info && info.purpose ? `<div class="purpose"><span class="hint">Folder:</span> ${esc(info.purpose)}</div>` : ''}
+      ${carry && carry.methods ? carryAction(d) : ''}
+      ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
+      ${d.violations.map((x) => issueCard(x, { noFile: true })).join('')}
+      <h3>Imports (${f.imports.length})</h3><ul>${f.imports.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing in the app</li>'}</ul>
+      <h3>Imported by (${ins.length})</h3><ul>${ins.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
+  }
+  el.querySelectorAll('[data-loc]').forEach((a) => (a.onclick = () => locate(a.dataset.loc)));
+  bindIssueFilter(el);
+  bindFixes(el);
+  bindActions(d);
+}
+
+// ---------- setup ----------
+const defs = svg.append('defs');
+for (const dir of ['out', 'in']) {
+  defs.append('marker').attr('id', `arrow-${dir}`).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
+    .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto-start-reverse')
+    .append('path').attr('d', 'M0,0 L10,5 L0,10 z').attr('fill', dir === 'out' ? 'var(--water)' : 'var(--warn)');
+}
+function resize() {
+  const r = document.getElementById('canvas').getBoundingClientRect();
+  W = r.width; H = r.height;
+  if (root) zoomTo(view);
+}
+window.addEventListener('resize', resize);
+resize();
+legend();
+api('GET', '/api/map').then((data) => load(data, '')).catch((e) => {
+  document.getElementById('panel').innerHTML = `<p class="error">Could not load the map: ${esc(e.message)}</p>`;
+});
+</script>
+</body>
+</html>

@@ -35,12 +35,12 @@ also work in CI jobs that don't build the project. (You do compile and test afte
 In Claude Code, from the folder with the root `pom.xml` / `build.gradle`:
 
 ```
-/project-map setup
+/floorplan setup
 ```
 
-Claude detects Spring Boot, copies the tools to `scripts/project-map/`, proposes `project-map.config.mjs` (you confirm
+Claude detects Spring Boot, copies the tools to `scripts/floorplan/`, proposes `floorplan.config.mjs` (you confirm
 the package purposes and rules), adds the Spring section to `CLAUDE.md`, generates the first maps, and asks about the
-automatic refresh and CI. No `package.json` is added; every command is `node scripts/project-map/<tool>.mjs`.
+automatic refresh and CI. No `package.json` is added; every command is `node scripts/floorplan/<tool>.mjs`.
 
 CI templates are the same as for Angular (they only need Node). If your pipeline runs in a Maven/Gradle image without
 Node, keep the template's own job (it uses a Node image) or add Node to the image.
@@ -158,9 +158,9 @@ The branch report, the session summary and the check work exactly as for Angular
 In the graph (drag a class or package onto a package) or with the CLI:
 
 ```bash
-node scripts/project-map/move-cli.mjs shared/OrderPricingService.java orders          # dry run
-node scripts/project-map/move-cli.mjs shared/OrderPricingService.java orders --apply  # do it
-node scripts/project-map/move-cli.mjs customers orders --apply                         # a whole package
+node scripts/floorplan/move-cli.mjs shared/OrderPricingService.java orders          # dry run
+node scripts/floorplan/move-cli.mjs shared/OrderPricingService.java orders --apply  # do it
+node scripts/floorplan/move-cli.mjs customers orders --apply                         # a whole package
 ```
 
 What is rewritten:
@@ -202,8 +202,8 @@ Open a `@Service` / `@Component` / controller / listener in the graph, select me
 a package (new class). Or:
 
 ```bash
-node scripts/project-map/analyze-cli.mjs --list
-node scripts/project-map/analyze-cli.mjs --source orders/OrderService.java --methods exportCsv \
+node scripts/floorplan/analyze-cli.mjs --list
+node scripts/floorplan/analyze-cli.mjs --source orders/OrderService.java --methods exportCsv \
   --target-folder orders --class OrderExportService
 ```
 
@@ -234,13 +234,13 @@ constructor injection, Maven/Gradle test commands, the decisions to ask about.
 
 | What | Command |
 |---|---|
-| Local map + branch report | `node scripts/project-map/generate-map.mjs` |
-| Check (only new issues fail) | `node scripts/project-map/generate-map.mjs --check` (`--strict`: all issues) |
-| Main map (CI on main) | `node scripts/project-map/generate-map.mjs --main` |
-| Graph | `node scripts/project-map/server.mjs` → http://localhost:4321 |
-| Move | `node scripts/project-map/move-cli.mjs <source> <target-package-folder> [--apply]` |
-| Method analysis | `node scripts/project-map/analyze-cli.mjs --list` / `--source … --methods … (--target-file … \| --target-folder … --class …)` |
-| Hooks | `node scripts/project-map/install-hooks.mjs` (`--git` per clone) |
+| Local map + branch report | `node scripts/floorplan/generate-map.mjs` |
+| Check (only new issues fail) | `node scripts/floorplan/generate-map.mjs --check` (`--strict`: all issues) |
+| Main map (CI on main) | `node scripts/floorplan/generate-map.mjs --main` |
+| Graph | `node scripts/floorplan/server.mjs` → http://localhost:4321 |
+| Move | `node scripts/floorplan/move-cli.mjs <source> <target-package-folder> [--apply]` |
+| Method analysis | `node scripts/floorplan/analyze-cli.mjs --list` / `--source … --methods … (--target-file … \| --target-folder … --class …)` |
+| Hooks | `node scripts/floorplan/install-hooks.mjs` (`--git` per clone) |
 
 ## 8. Validate with the sample app
 
@@ -251,9 +251,9 @@ constructor injection, Maven/Gradle test commands, the decisions to ask about.
 ```bash
 cp -r sample-spring-app /tmp/spring && cd /tmp/spring
 git init -q -b main && git add -A && git commit -qm sample
-mkdir -p scripts/project-map && cp -r <kit>/skill/project-map/scripts/. scripts/project-map/
-cp <kit>/skill/project-map/templates/project-map.config.spring.mjs project-map.config.mjs
-node scripts/project-map/generate-map.mjs --main
+mkdir -p scripts/floorplan && cp -r <kit>/skill/floorplan/scripts/. scripts/floorplan/
+cp <kit>/skill/floorplan/templates/floorplan.config.spring.mjs floorplan.config.mjs
+node scripts/floorplan/generate-map.mjs --main
 ```
 
 Expected: `16 files · 7 endpoints · 6 areas · 6 violations`:
@@ -270,13 +270,13 @@ Then:
 
 ```bash
 git add -A && git commit -qm setup && git switch -c try
-node scripts/project-map/move-cli.mjs shared/OrderPricingService.java orders          # preview: package line, 1 import removed, 1 added
-node scripts/project-map/move-cli.mjs shared/OrderPricingService.java orders --apply
-node scripts/project-map/generate-map.mjs --check                                     # ✓ No new rule issues. 2 fixed
+node scripts/floorplan/move-cli.mjs shared/OrderPricingService.java orders          # preview: package line, 1 import removed, 1 added
+node scripts/floorplan/move-cli.mjs shared/OrderPricingService.java orders --apply
+node scripts/floorplan/generate-map.mjs --check                                     # ✓ No new rule issues. 2 fixed
 javac -d /tmp/classes $(find <kit>/java-stubs src -name '*.java')                     # compiles
-node scripts/project-map/analyze-cli.mjs --source orders/OrderService.java --methods exportCsv \
+node scripts/floorplan/analyze-cli.mjs --source orders/OrderService.java --methods exportCsv \
   --target-folder orders --class OrderExportService                                   # exit 3: exportCount is shared state
-node scripts/project-map/server.mjs                                                   # the graph
+node scripts/floorplan/server.mjs                                                   # the graph
 ```
 
 The repository's `tests/run.sh` runs all of this automatically (sections 8 to 11) and compiles after every move.

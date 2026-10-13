@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Sample Spring Boot app for project-map. Tests compile it with javac against small stubs (tests/java-stubs),
+<!-- Sample Spring Boot app for floorplan. Tests compile it with javac against small stubs (tests/java-stubs),
      so Maven and a network connection are not needed. -->
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>

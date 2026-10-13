@@ -1,6 +1,6 @@
 # 1 · Setup
 
-How to install the `project-map` skill on a laptop and set it up in an Angular repository.
+How to install the `floorplan` skill on a laptop and set it up in an Angular repository.
 Spring Boot (Java) projects: the install is the same; the differences in setup are in [4-SPRING-BOOT.md](4-SPRING-BOOT.md).
 
 Contents:
@@ -22,15 +22,15 @@ Contents:
 ## 1. What's in the zip
 
 ```
-project-map-kit/
+floorplan-kit/
   README.md                 short overview
   docs/
     1-SETUP.md              this file
     2-VALIDATION.md         how the checks work, and how to verify the installation
     3-FEATURES.md           every feature in detail
     4-SPRING-BOOT.md        Spring Boot (Java): setup, rules, moves, method moves, walkthrough
-  skill/project-map/        THE SKILL (copy this folder)
-    SKILL.md                entry point Claude reads; routes /project-map subcommands
+  skill/floorplan/        THE SKILL (copy this folder)
+    SKILL.md                entry point Claude reads; routes /floorplan subcommands
     reference/              step-by-step guides Claude loads on demand (setup, ui, move, move-methods)
     scripts/                the tools (Node, no dependencies) + bundled D3 for the graph
     templates/              starting config, CLAUDE.md section, CI templates (ci/)
@@ -63,19 +63,19 @@ Available in every repository on this laptop, only for you.
 
 macOS / Linux:
 ```bash
-unzip project-map-kit.zip
+unzip floorplan-kit.zip
 mkdir -p ~/.claude/skills
-cp -r project-map-kit/skill/project-map ~/.claude/skills/
+cp -r floorplan-kit/skill/floorplan ~/.claude/skills/
 ```
 
 Windows (PowerShell):
 ```powershell
-Expand-Archive project-map-kit.zip -DestinationPath .
+Expand-Archive floorplan-kit.zip -DestinationPath .
 New-Item -ItemType Directory -Force "$HOME\.claude\skills" | Out-Null
-Copy-Item -Recurse project-map-kit\skill\project-map "$HOME\.claude\skills\"
+Copy-Item -Recurse floorplan-kit\skill\floorplan "$HOME\.claude\skills\"
 ```
 
-Result: `~/.claude/skills/project-map/SKILL.md` exists. Start a **new** Claude Code session.
+Result: `~/.claude/skills/floorplan/SKILL.md` exists. Start a **new** Claude Code session.
 
 ### Way B: project skill (for a whole team in one repository)
 
@@ -83,8 +83,8 @@ Everyone who opens this repository in Claude Code gets the skill.
 
 ```bash
 mkdir -p .claude/skills
-cp -r /path/to/project-map-kit/skill/project-map .claude/skills/
-git add .claude/skills/project-map && git commit -m "Add project-map skill"
+cp -r /path/to/floorplan-kit/skill/floorplan .claude/skills/
+git add .claude/skills/floorplan && git commit -m "Add floorplan skill"
 ```
 
 ### Way C: plugin from the folder
@@ -92,28 +92,28 @@ git add .claude/skills/project-map && git commit -m "Add project-map skill"
 Same skill, installed and versioned as a plugin.
 
 ```bash
-claude plugin marketplace add ./project-map-kit/plugin-marketplace
-claude plugin install project-map@project-map-tools
+claude plugin marketplace add ./floorplan-kit/plugin-marketplace
+claude plugin install floorplan@floorplan
 ```
 
 Expected output:
 ```
-✔ Successfully added marketplace: project-map-tools (declared in user settings)
-✔ Successfully installed plugin: project-map@project-map-tools (scope: user)
+✔ Successfully added marketplace: floorplan (declared in user settings)
+✔ Successfully installed plugin: floorplan@floorplan (scope: user)
 ```
 
-As a plugin the command is `/project-map:project-map` (Claude Code also accepts `/project-map` when no other command
-has that name). Everywhere in these docs, `/project-map …` means either form.
+As a plugin the command is `/floorplan:floorplan` (Claude Code also accepts `/floorplan` when no other command
+has that name). Everywhere in these docs, `/floorplan …` means either form.
 
 > Don't install it both as a personal skill and as a plugin; you'd get two copies.
 
 ## 4. Check that Claude Code sees it
 
 1. Start a new session in any folder: `claude`
-2. Type `/project-` — `project-map` must appear in the suggestions, with the hint
+2. Type `/project-` — `floorplan` must appear in the suggestions, with the hint
    `[setup | map | ui [port] | move <source> <target-folder> | move-methods <task or details>]`.
-3. Plugin only: `claude plugin list` shows `project-map@project-map-tools … Status: ✔ enabled`, and
-   `claude plugin details project-map` lists the skill `project-map`.
+3. Plugin only: `claude plugin list` shows `floorplan@floorplan … Status: ✔ enabled`, and
+   `claude plugin details floorplan` lists the skill `floorplan`.
 
 Not there? See [Troubleshooting](#12-troubleshooting).
 
@@ -123,7 +123,7 @@ Do this once per Angular repository, on a branch, then merge it to main.
 
 ```bash
 cd ~/projects/your-angular-app
-git switch -c chore/project-map
+git switch -c chore/floorplan
 npm install          # if not done yet
 claude
 ```
@@ -131,20 +131,20 @@ claude
 In Claude Code:
 
 ```
-/project-map setup
+/floorplan setup
 ```
 
 What Claude does, step by step (from `reference/setup.md`):
 
 1. **Checks** it's an Angular project (`angular.json` or `@angular/core`), Node ≥ 18, and `node_modules/typescript`.
    If something is missing, it stops and tells you.
-2. **Copies the tools** into `scripts/project-map/`.
-3. **Creates `project-map.config.mjs`** (only if it doesn't exist): finds the app folder from `angular.json`, writes a
+2. **Copies the tools** into `scripts/floorplan/`.
+3. **Creates `floorplan.config.mjs`** (only if it doesn't exist): finds the app folder from `angular.json`, writes a
    purpose per top-level folder, adapts the rules to your real layout, and **waits for your confirmation**.
 4. **Adds npm scripts**: `map`, `map:main`, `map:check`, `map:ui`, `map:hooks`.
 5. **Adds a section to `CLAUDE.md`**: Claude loads the main map in every session and knows where the branch report is.
 6. **Creates the first maps**: `npm run map:main` (main map in `docs/`) and `npm run map` (local map + branch report
-   in `.project-map/`). Lists the existing rule issues; doesn't fix them.
+   in `.floorplan/`). Lists the existing rule issues; doesn't fix them.
 7. **Asks before installing the automatic refresh** (`npm run map:hooks`): a Claude Code session-start hook and
    git hooks. See [section 8](#8-ci-and-the-team-workflow).
 8. **Asks which CI you use** and copies the matching template (GitHub Actions, Azure Pipelines, GitLab).
@@ -153,54 +153,54 @@ What Claude does, step by step (from `reference/setup.md`):
 Review the diff, then commit and merge to main:
 
 ```bash
-git add scripts/project-map project-map.config.mjs docs/PROJECT_MAP.md docs/project-map.json package.json CLAUDE.md
-git add .claude/settings.json .github/workflows/project-map.yml   # if they were added
+git add scripts/floorplan floorplan.config.mjs docs/FLOORPLAN.md docs/floorplan.json package.json CLAUDE.md
+git add .claude/settings.json .github/workflows/floorplan.yml   # if they were added
 git commit -m "Add project map"
 ```
 
-`.project-map/` is never committed: the folder contains its own `.gitignore`.
+`.floorplan/` is never committed: the folder contains its own `.gitignore`.
 
 Manual setup without Claude:
 
 ```bash
-mkdir -p scripts/project-map
-cp -r ~/.claude/skills/project-map/scripts/. scripts/project-map/
-cp ~/.claude/skills/project-map/templates/project-map.config.mjs .     # then edit it
-npm pkg set scripts.map="node scripts/project-map/generate-map.mjs" \
-            scripts.map:main="node scripts/project-map/generate-map.mjs --main" \
-            scripts.map:check="node scripts/project-map/generate-map.mjs --check" \
-            scripts.map:ui="node scripts/project-map/server.mjs" \
-            scripts.map:hooks="node scripts/project-map/install-hooks.mjs"
-cat ~/.claude/skills/project-map/templates/claude-md-section.md >> CLAUDE.md
+mkdir -p scripts/floorplan
+cp -r ~/.claude/skills/floorplan/scripts/. scripts/floorplan/
+cp ~/.claude/skills/floorplan/templates/floorplan.config.mjs .     # then edit it
+npm pkg set scripts.map="node scripts/floorplan/generate-map.mjs" \
+            scripts.map:main="node scripts/floorplan/generate-map.mjs --main" \
+            scripts.map:check="node scripts/floorplan/generate-map.mjs --check" \
+            scripts.map:ui="node scripts/floorplan/server.mjs" \
+            scripts.map:hooks="node scripts/floorplan/install-hooks.mjs"
+cat ~/.claude/skills/floorplan/templates/claude-md-section.md >> CLAUDE.md
 npm run map:main && npm run map
 npm run map:hooks                                   # optional: automatic refresh
-cp ~/.claude/skills/project-map/templates/ci/github-actions.yml .github/workflows/project-map.yml   # or azure / gitlab
+cp ~/.claude/skills/floorplan/templates/ci/github-actions.yml .github/workflows/floorplan.yml   # or azure / gitlab
 ```
 
 ## 6. What setup changes in your repository
 
 | Path | What it is | Committed? |
 |---|---|---|
-| `scripts/project-map/*` | the tools (generator, graph server + UI, move engine, method analysis, CLIs, hook installer, bundled D3) | yes, so CI and teammates without the skill can run them |
-| `project-map.config.mjs` | folder purposes and rules, the only file you edit by hand | yes |
-| `docs/PROJECT_MAP.md`, `docs/project-map.json` | the **main map**: structure of main, loaded by Claude | yes, but only CI updates it (after merges to main) |
-| `.project-map/` | **local**: map of your working tree, branch report, cache | no, never (ignores itself) |
+| `scripts/floorplan/*` | the tools (generator, graph server + UI, move engine, method analysis, CLIs, hook installer, bundled D3) | yes, so CI and teammates without the skill can run them |
+| `floorplan.config.mjs` | folder purposes and rules, the only file you edit by hand | yes |
+| `docs/FLOORPLAN.md`, `docs/floorplan.json` | the **main map**: structure of main, loaded by Claude | yes, but only CI updates it (after merges to main) |
+| `.floorplan/` | **local**: map of your working tree, branch report, cache | no, never (ignores itself) |
 | `package.json` | five npm scripts | yes |
 | `CLAUDE.md` | section that loads the main map and points to the branch report | yes |
 | `.claude/settings.json` | session-start hook (if you chose the automatic refresh) | yes, shares it with the team |
 | `.git/hooks/post-checkout`, `post-merge`, `post-rewrite` | git hooks (if chosen) | no, local to each clone |
-| CI file (e.g. `.github/workflows/project-map.yml`) | PR check + main map regeneration | yes |
+| CI file (e.g. `.github/workflows/floorplan.yml`) | PR check + main map regeneration | yes |
 
 No dependencies are added to `package.json`.
 
 ## 7. The config file explained
 
 Tip: start from a **preset** (`presets: ['angular-feature-sliced']`, `angular-nx`, `spring-layered`,
-`spring-hexagonal`) and add your own rules on top; `/project-map setup` proposes one when the layout fits. Rule types,
+`spring-hexagonal`) and add your own rules on top; `/floorplan setup` proposes one when the layout fits. Rule types,
 `typeImports`, `accepted`, `budget`, `errorFrom`, `why` and `docs`: [2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules).
-Owners in `folders` can become a CODEOWNERS file: `node scripts/project-map/codeowners.mjs --write`.
+Owners in `folders` can become a CODEOWNERS file: `node scripts/floorplan/codeowners.mjs --write`.
 
-`project-map.config.mjs` (all paths are relative to `root`; patterns: `*` = one folder, `**` = any depth;
+`floorplan.config.mjs` (all paths are relative to `root`; patterns: `*` = one folder, `**` = any depth;
 a folder pattern also matches everything inside it):
 
 ```js
@@ -208,9 +208,9 @@ export default {
   root: 'src/app',                 // the Angular app folder
   tsconfig: 'tsconfig.json',       // where path aliases (@core/*, @shared/*) are defined
   output: {
-    markdown: 'docs/PROJECT_MAP.md',   // main map (committed, written by CI on main)
-    json: 'docs/project-map.json',
-    local: '.project-map',             // local map + branch report (never committed)
+    markdown: 'docs/FLOORPLAN.md',   // main map (committed, written by CI on main)
+    json: 'docs/floorplan.json',
+    local: '.floorplan',             // local map + branch report (never committed)
   },
   baseBranch: 'main',              // what branches are compared with (origin/main if it exists, else main)
   maxFilesPerFolder: 8,            // above this, a folder shows counts instead of file names (keeps the map small)
@@ -237,12 +237,12 @@ Edit it any time, then run `npm run map`.
 
 ### The idea
 
-| | Main map (`docs/`) | Local map + branch report (`.project-map/`) |
+| | Main map (`docs/`) | Local map + branch report (`.floorplan/`) |
 |---|---|---|
 | Shows | structure of **main** | your working tree, and what your branch changed compared with main |
 | Written by | **CI only**, after every merge to main (`npm run map:main`) | you / the hooks (`npm run map`) |
 | Committed | yes | never |
-| Used by | Claude in every session (`@docs/PROJECT_MAP.md` in `CLAUDE.md`) | Claude (session-start summary + file), the graph, `map:check` |
+| Used by | Claude in every session (`@docs/FLOORPLAN.md` in `CLAUDE.md`) | Claude (session-start summary + file), the graph, `map:check` |
 
 Because only CI writes the main map, feature branches never change it, so it **never causes merge conflicts**.
 When you merge or rebase main into your branch, you get the current main map automatically.
@@ -253,12 +253,12 @@ on main in the meantime. It also tells you when main has newer commits you haven
 
 ### CI templates
 
-In `skill/project-map/templates/ci/` (in the kit; in the repository: `plugin/skills/project-map/templates/ci/`):
+In `skill/floorplan/templates/ci/` (in the kit; in the repository: `plugin/skills/floorplan/templates/ci/`):
 
 | File | Put it at |
 |---|---|
-| `github-actions.yml` | `.github/workflows/project-map.yml` |
-| `azure-pipelines.yml` | `azure-pipelines-project-map.yml`, then create a pipeline from it in Azure DevOps (or copy the steps into your existing pipeline) |
+| `github-actions.yml` | `.github/workflows/floorplan.yml` |
+| `azure-pipelines.yml` | `azure-pipelines-floorplan.yml`, then create a pipeline from it in Azure DevOps (or copy the steps into your existing pipeline) |
 | `gitlab-ci.yml` | append to `.gitlab-ci.yml` |
 
 Each does two jobs:
@@ -267,7 +267,7 @@ Each does two jobs:
    issues; existing issues on main don't block anyone. It also posts a **comment on the PR**: files moved, new folders,
    new dependencies between areas, new and fixed rule issues with the fix command. GitHub updates one comment per
    PR (needs `pull-requests: write`, set in the template); Azure DevOps adds a thread (the build identity needs
-   *Contribute to pull requests*); GitLab posts a note when `PROJECT_MAP_TOKEN` has the `api` scope.
+   *Contribute to pull requests*); GitLab posts a note when `FLOORPLAN_TOKEN` has the `api` scope.
 2. **Builds of main** (after a merge): `generate-map.mjs --main`, then commits the map (the paths come from
    `generate-map.mjs --outputs`, including the area files of a split map) with `[skip ci]` if they changed.
 
@@ -277,7 +277,7 @@ Requirements:
 - **Permission to push to main** for the CI identity. Protected branches need an exception:
   GitHub: allow the `GITHUB_TOKEN` / a bot in the ruleset; Azure DevOps: "<Project> Build Service" needs
   *Contribute* and *Bypass policies when pushing*; GitLab: a project access token with `write_repository` in
-  `PROJECT_MAP_TOKEN`. If that's not allowed, see the alternative at the bottom of the Azure template.
+  `FLOORPLAN_TOKEN`. If that's not allowed, see the alternative at the bottom of the Azure template.
 - No `npm install` needed: the map uses only Node.
 
 ### Automatic refresh on developer machines
@@ -286,9 +286,9 @@ Requirements:
 
 | Hook | When | Effect |
 |---|---|---|
-| Claude Code SessionStart (`.claude/settings.json`) | every new session, `/clear`, after compaction | refreshes `.project-map/` and adds a short summary to Claude's context: branch, branch point, files added/moved/deleted/modified, new/fixed rule issues |
+| Claude Code SessionStart (`.claude/settings.json`) | every new session, `/clear`, after compaction | refreshes `.floorplan/` and adds a short summary to Claude's context: branch, branch point, files added/moved/deleted/modified, new/fixed rule issues |
 | Claude Code PostToolUse, the **edit check** (`.claude/settings.json`) | every time Claude writes or edits a `.ts` / `.java` file | if that file now breaks a rule (new compared with main), Claude is told right away, with the fix command. Takes about 0.2 s thanks to the per-file cache. Silent when the file is fine. Skip it with `--no-edit-check` |
-| git post-checkout / post-merge / post-rewrite (`.git/hooks/`) | switching branches, pulling, merging, rebasing | refreshes `.project-map/` silently |
+| git post-checkout / post-merge / post-rewrite (`.git/hooks/`) | switching branches, pulling, merging, rebasing | refreshes `.floorplan/` silently |
 
 Options: `npm run map:hooks -- --claude` (only Claude), `-- --git` (only git), `-- --remove` (remove both).
 Git hooks are per clone: each developer runs `npm run map:hooks -- --git` once. With husky (`core.hooksPath`), the script
@@ -297,7 +297,7 @@ prints the line to add to your husky hooks instead.
 ### Day to day
 
 ```bash
-git switch -c feature/x        # hooks refresh .project-map/
+git switch -c feature/x        # hooks refresh .floorplan/
 # ... work ...
 npm run map                    # optional: fresh branch report right now
 npm run map:check              # what CI will say: only new issues fail
@@ -306,17 +306,17 @@ git fetch && git merge origin/main   # main map comes along, no conflicts; hooks
 
 ## 9. Update to a newer version
 
-1. Update the skill: copy the new `skill/project-map` folder over the old one, or for the plugin
-   `/plugin marketplace update project-map-tools`.
-2. In each repository: `/project-map update`. Claude compares versions (`scripts/project-map/VERSION`), copies the new
+1. Update the skill: copy the new `skill/floorplan` folder over the old one, or for the plugin
+   `/plugin marketplace update floorplan`.
+2. In each repository: `/floorplan update`. Claude compares versions (`scripts/floorplan/VERSION`), copies the new
    tools, refreshes the CLAUDE.md section (`claude-md.mjs`), lists new config options and rules from the template and
-   asks which to add, then runs the map and the check. Your `project-map.config.mjs` is never overwritten.
-3. When the skill is newer than a repository's tools, any `/project-map` command says so in one line.
+   asks which to add, then runs the map and the check. Your `floorplan.config.mjs` is never overwritten.
+3. When the skill is newer than a repository's tools, any `/floorplan` command says so in one line.
 
 ### Without CI
 
 If no CI job regenerates the main map, setup writes `ci: false` in the config. The CLAUDE.md section then says:
-after merging to main, someone runs `npm run map:main` (Spring: `node scripts/project-map/generate-map.mjs --main`)
+after merging to main, someone runs `npm run map:main` (Spring: `node scripts/floorplan/generate-map.mjs --main`)
 on main and commits it. `--main` warns when it runs on another branch.
 
 ### Windows
@@ -328,18 +328,33 @@ on main and commits it. `--main` warns when it runs on another branch.
 
 ## 10. Uninstall
 
-- Personal skill: delete `~/.claude/skills/project-map`.
-- Project skill: delete `.claude/skills/project-map` from the repository.
-- Plugin: `claude plugin uninstall project-map@project-map-tools`, then `claude plugin marketplace remove project-map-tools`.
-- From a repository: run `npm run map:hooks -- --remove` (hooks), then delete `scripts/project-map/`,
-  `project-map.config.mjs`, `docs/PROJECT_MAP.md`, `docs/project-map.json`, `.project-map/`, the `map*` npm scripts,
+- Personal skill: delete `~/.claude/skills/floorplan`.
+- Project skill: delete `.claude/skills/floorplan` from the repository.
+- Plugin: `claude plugin uninstall floorplan@floorplan`, then `claude plugin marketplace remove floorplan`.
+- From a repository: run `npm run map:hooks -- --remove` (hooks), then delete `scripts/floorplan/`,
+  `floorplan.config.mjs`, `docs/FLOORPLAN.md`, `docs/floorplan.json`, `.floorplan/`, the `map*` npm scripts,
   the CI file, and the "Project structure" section in `CLAUDE.md`.
+
+## 10a. Cloud sessions (claude.ai/code)
+
+Cloud sessions run on a fresh clone of the repository and don't install plugins (not even the ones listed in
+`.claude/settings.json`). They do load what is committed: `CLAUDE.md`, the hooks in `.claude/settings.json` and skills
+in `.claude/skills/`. So for teams that use cloud sessions, commit the skill once per repository (setup offers it):
+
+```bash
+mkdir -p .claude/skills && cp -r <skill folder> .claude/skills/floorplan
+git add .claude/skills/floorplan && git commit -m "Add the floorplan skill for cloud sessions"
+```
+
+Then anyone opens the repository at claude.ai/code and types `/floorplan`. `/floorplan update` refreshes that copy.
+The graph needs a browser on the machine that runs it, so in cloud sessions use the map, `map:check` and the move
+commands; for the graph, continue the session locally (`claude --teleport`).
 
 ## 11. Later: roll out to the whole company
 
 1. Push `plugin-marketplace/` to a Git repository everyone can read. A company GitHub/GitLab organization is better
    than a personal account (access control, ownership when people change teams).
-2. Colleagues run, in Claude Code: `/plugin marketplace add <org>/<repo>` and then `/plugin install project-map@project-map-tools`.
+2. Colleagues run, in Claude Code: `/plugin marketplace add <org>/<repo>` and then `/plugin install floorplan@floorplan`.
    Other hosts: use the full git URL (`/plugin marketplace add https://gitlab.example.com/team/plugins.git`).
 3. Private repository: each machine needs git access without a password prompt
    (GitHub: `gh auth login` then `gh auth setup-git`, or an SSH key loaded in ssh-agent).
@@ -348,27 +363,30 @@ on main and commits it. `--main` warns when it runs on another branch.
    ```json
    {
      "extraKnownMarketplaces": {
-       "project-map-tools": { "source": { "source": "github", "repo": "<org>/<repo>" }, "autoUpdate": true }
+       "floorplan": { "source": { "source": "github", "repo": "<org>/<repo>" }, "autoUpdate": true }
      },
-     "enabledPlugins": { "project-map@project-map-tools": true }
+     "enabledPlugins": { "floorplan@floorplan": true }
    }
    ```
 5. Release: bump `version` in `plugin.json` for every change you want users to receive.
+6. Public listing: submit the plugin to Anthropic's community marketplace (see `docs/dev/PUBLISHING.md` in the
+   repository). Then anyone can install it with `/plugin marketplace add anthropics/claude-plugins-community` and
+   `/plugin install floorplan@claude-community`.
 
 ## 12. Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `/project-map` doesn't appear | Start a **new** session. Check the folder is exactly `~/.claude/skills/project-map/SKILL.md` (not nested twice, e.g. `project-map/project-map/`). Plugin: `claude plugin list`. |
+| `/floorplan` doesn't appear | Start a **new** session. Check the folder is exactly `~/.claude/skills/floorplan/SKILL.md` (not nested twice, e.g. `floorplan/floorplan/`). Plugin: `claude plugin list`. |
 | "TypeScript not found" | Run `npm install` in the project. The analysis uses `node_modules/typescript`. |
-| "Root folder not found: src/app" | Set `root` in `project-map.config.mjs` to your app folder. |
-| Graph page is blank | Open the browser console. The server serves D3 from `scripts/project-map/d3.min.js`; make sure that file was copied. |
-| Port 4321 is in use | `/project-map ui 4400` or `node scripts/project-map/server.mjs --port 4400` |
+| "Root folder not found: src/app" | Set `root` in `floorplan.config.mjs` to your app folder. |
+| Graph page is blank | Open the browser console. The server serves D3 from `scripts/floorplan/d3.min.js`; make sure that file was copied. |
+| Port 4321 is in use | `/floorplan ui 4400` or `node scripts/floorplan/server.mjs --port 4400` |
 | Imports with aliases aren't resolved | Make sure `tsconfig` in the config points to the file with `compilerOptions.paths`. |
 | Windows: `cp` not found | Use the PowerShell commands in section 3, or Git Bash. |
-| Claude Code asks permission for each tool command | Normal on first use. Allow `node scripts/project-map/*` and `npm run map*` for the project. |
+| Claude Code asks permission for each tool command | Normal on first use. Allow `node scripts/floorplan/*` and `npm run map*` for the project. |
 | Branch report: "Branch main not found" | `git fetch origin main`, or set `baseBranch` in the config if your main branch has another name (e.g. `develop`, `master`). |
 | `map:check` in CI says "no main map found" / compares with docs | The checkout has no history. Use full history (`fetch-depth: 0`). |
 | CI can't push the main map ("protected branch") | Give the CI identity permission to push to main, or use the artifact alternative (Azure template, bottom). |
 | Map too big for Claude in a large app | It switches to compact mode automatically above 400 files (counts per folder, 3 levels, wide folders on one line). Tune `compactAbove`, `compactDepth`, `compactMaxLines`, `compactWideFolder`. |
-| Session-start summary missing | Run `npm run map:hooks -- --claude`, commit `.claude/settings.json`, start a new session. Check `node scripts/project-map/generate-map.mjs --session` prints a summary. |
+| Session-start summary missing | Run `npm run map:hooks -- --claude`, commit `.claude/settings.json`, start a new session. Check `node scripts/floorplan/generate-map.mjs --session` prints a summary. |

@@ -1,7 +1,7 @@
 # Experiments: does the map help?
 
 `run.mjs` runs the same tasks with headless Claude Code twice, once in a copy of your repository **without**
-project-map (tools, config, maps, CLAUDE.md section and hooks removed) and once **with** it, and compares:
+floorplan (tools, config, maps, CLAUDE.md section and hooks removed) and once **with** it, and compares:
 
 - turns, cost and time (from `claude -p --output-format json`)
 - **new rule issues** (both copies are checked with the same tools and rules, compared with the starting commit)
@@ -12,7 +12,7 @@ Your working copy is never touched: every run uses a temporary git worktree, not
 
 ## Run it
 
-1. Set up project-map in the repository and commit it (on a branch is fine).
+1. Set up floorplan in the repository and commit it (on a branch is fine).
 2. Write 4–6 tasks for **your** app in a JSON file (start from `tasks.example.json` or `tasks.spring.example.json`).
    Good tasks: a new feature page, a service next to existing ones, something that should reuse existing code, a fix
    in a messy area. They should be things you'd ask Claude for anyway.

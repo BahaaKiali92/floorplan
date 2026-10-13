@@ -1,0 +1,181 @@
+{
+  "generatedBy": "/floorplan rules",
+  "generatedAt": "2026-10-13",
+  "sources": {
+    "CLAUDE.md": "97f8cf562c18"
+  },
+  "rules": [
+    {
+      "name": "standalone-components",
+      "type": "pattern",
+      "kinds": [
+        "component",
+        "directive",
+        "pipe"
+      ],
+      "pattern": "standalone\\s*:\\s*false",
+      "what": "standalone: false",
+      "message": "Components must be standalone.",
+      "howToFix": "Remove `standalone: false` (standalone is the default in Angular 20) and import dependencies via `imports`.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 7,
+        "text": "All components are standalone and use `ChangeDetectionStrategy.OnPush`."
+      },
+      "replaces": []
+    },
+    {
+      "name": "onpush",
+      "type": "requirePattern",
+      "kinds": [
+        "component"
+      ],
+      "pattern": "ChangeDetectionStrategy\\.OnPush",
+      "what": "ChangeDetectionStrategy.OnPush",
+      "message": "Components must use OnPush change detection.",
+      "howToFix": "Add `changeDetection: ChangeDetectionStrategy.OnPush` to the @Component decorator and import ChangeDetectionStrategy from @angular/core.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 7,
+        "text": "All components are standalone and use `ChangeDetectionStrategy.OnPush`."
+      },
+      "replaces": []
+    },
+    {
+      "name": "inject-function",
+      "type": "pattern",
+      "kinds": [
+        "component",
+        "service",
+        "directive",
+        "pipe",
+        "guard",
+        "interceptor",
+        "resolver"
+      ],
+      "pattern": "constructor\\s*\\(\\s*(private|protected|public|readonly)\\b",
+      "what": "constructor parameter injection",
+      "message": "Dependencies must be injected with inject(), not constructor parameters.",
+      "howToFix": "Replace the constructor parameter with `private readonly dep = inject(Dep);` as a field.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 8,
+        "text": "Use the `inject()` function for dependencies, never constructor parameter injection."
+      },
+      "replaces": []
+    },
+    {
+      "name": "no-any",
+      "type": "pattern",
+      "files": "**/*.ts",
+      "pattern": ":\\s*any\\b|<any>|as any\\b|<any\\[\\]>|any\\[\\]",
+      "what": "the any type",
+      "message": "The project bans `any`.",
+      "howToFix": "Use a real type, or `unknown` and narrow it with a type guard.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 9,
+        "text": "Never use `any`. Use `unknown` and narrow it."
+      },
+      "replaces": []
+    },
+    {
+      "name": "no-httpclient-in-components",
+      "type": "pattern",
+      "kinds": [
+        "component"
+      ],
+      "pattern": "\\bHttpClient\\b",
+      "what": "HttpClient",
+      "message": "Components must not use HttpClient directly.",
+      "howToFix": "Move the request into a service (features/<feature>/services/ or core/) and inject that service.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 10,
+        "text": "Components never call `HttpClient` directly; data access goes through services."
+      },
+      "replaces": []
+    },
+    {
+      "name": "no-console-log",
+      "type": "pattern",
+      "files": "**/*.ts",
+      "pattern": "\\bconsole\\.log\\s*\\(",
+      "what": "console.log",
+      "message": "No console.log in committed code.",
+      "howToFix": "Remove the call, or surface the information through the UI or a proper error handler.",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 11,
+        "text": "No `console.log` in committed code."
+      },
+      "replaces": []
+    },
+    {
+      "name": "services-placement",
+      "type": "placement",
+      "kinds": [
+        "service"
+      ],
+      "allowedIn": [
+        "core",
+        "features/*/services"
+      ],
+      "message": "Services belong in core/ (app-wide) or features/<feature>/services/.",
+      "howToFix": "node scripts/floorplan/move-cli.mjs <file> --fix",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 12,
+        "text": "Feature services live in `features/<feature>/services/`; app-wide services in `core/`."
+      },
+      "replaces": [
+        "services-placement"
+      ]
+    },
+    {
+      "name": "models-placement",
+      "type": "placement",
+      "kinds": [
+        "model"
+      ],
+      "allowedIn": [
+        "core/models",
+        "features/*/models"
+      ],
+      "message": "Models belong in features/<feature>/models/ or core/models/.",
+      "howToFix": "node scripts/floorplan/move-cli.mjs <file> --fix",
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 13,
+        "text": "Models (interfaces) live in a `models/` folder of their feature or in `core/models`."
+      },
+      "replaces": []
+    }
+  ],
+  "notCheckable": [
+    {
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 4,
+        "text": "Run `npm test` before finishing."
+      },
+      "reason": "about the way of working"
+    },
+    {
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 16,
+        "text": "Keep pull requests small and focused."
+      },
+      "reason": "reviewer judgement"
+    },
+    {
+      "source": {
+        "file": "CLAUDE.md",
+        "line": 17,
+        "text": "Ask before adding a new npm dependency."
+      },
+      "reason": "process"
+    }
+  ]
+}

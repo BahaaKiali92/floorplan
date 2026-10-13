@@ -1,8 +1,8 @@
 {
-  "name": "project-map",
-  "displayName": "Project Map",
-  "version": "0.9.0",
-  "description": "Project map for Angular and Spring Boot (Java): a generated structure map Claude reads for every task, an interactive bubble graph to move files, classes and packages (imports rewritten), structure rules checked in CI (only new issues fail), and an impact preview for moving methods between services.",
+  "name": "floorplan",
+  "displayName": "Floorplan",
+  "version": "1.0.0",
+  "description": "Keeps an Angular or Spring Boot codebase in shape with Claude: a structure map Claude reads for every task, rules for where code lives and what may use what (built-in, presets, and your own CLAUDE.md rules as warnings), clear issues with file, line and how to fix, a bubble graph to move files, classes and packages with imports rewritten, and a CI check that fails only on new issues.",
   "author": {
     "name": "Bahaa Kiali",
     "url": "https://github.com/BahaaKayali92"
@@ -12,13 +12,18 @@
     "angular",
     "architecture",
     "architecture-rules",
+    "claude-md",
     "code-structure",
     "codeowners",
+    "conventions",
     "java",
+    "lint",
+    "monorepo",
+    "nx",
     "project-structure",
     "refactoring",
     "spring-boot"
   ],
-  "homepage": "https://github.com/BahaaKayali92/project-play-map",
-  "repository": "https://github.com/BahaaKayali92/project-play-map"
+  "homepage": "https://github.com/BahaaKayali92/floorplan",
+  "repository": "https://github.com/BahaaKayali92/floorplan"
 }

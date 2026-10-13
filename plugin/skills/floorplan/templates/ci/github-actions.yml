@@ -1,0 +1,55 @@
+# .github/workflows/floorplan.yml
+# - Pull requests: fail only when the PR introduces NEW structure rule issues (existing ones on main don't block).
+# - Pushes to main (merges): regenerate the main map (docs/ by default) and commit it. Only CI writes it, so no merge conflicts.
+# The map needs only Node (also for Spring Boot / Java projects); no npm install, no build required.
+name: Floorplan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write        # needed to commit the regenerated map on main
+  pull-requests: write   # needed to comment on pull requests
+
+concurrency:
+  group: floorplan-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  floorplan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history: the check compares with the branch point on main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check rules (only new issues fail) and comment on the PR
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          node scripts/floorplan/generate-map.mjs --check --pr-comment floorplan-comment.md || status=$?
+          # one comment per PR, updated on every push (forks have no write token: then only the check runs)
+          gh pr comment ${{ github.event.pull_request.number }} --body-file floorplan-comment.md --edit-last 2>/dev/null \
+            || gh pr comment ${{ github.event.pull_request.number }} --body-file floorplan-comment.md || true
+          exit $status
+
+      - name: Regenerate the main map
+        if: github.event_name == 'push'
+        run: |
+          node scripts/floorplan/generate-map.mjs --main
+          OUT=$(node scripts/floorplan/generate-map.mjs --outputs)   # the map paths from floorplan.config.mjs
+          if [ -n "$(git status --porcelain -- $OUT)" ]; then
+            git config user.name "floorplan-bot"
+            git config user.email "floorplan-bot@users.noreply.github.com"
+            git add $OUT
+            git commit -m "chore: update project map [skip ci]"
+            git push
+          fi

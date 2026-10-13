@@ -1,0 +1,39 @@
+# Add to .gitlab-ci.yml
+# - Merge requests: fail only on NEW structure rule issues.
+# - main: regenerate and commit the main map (needs a project access token with write_repository in FLOORPLAN_TOKEN).
+# - Merge request comment: set FLOORPLAN_TOKEN with the api scope too (optional; without it only the check runs).
+floorplan-check:
+  image: node:22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - git fetch origin main
+    - |
+      status=0
+      node scripts/floorplan/generate-map.mjs --check --pr-comment floorplan-comment.md || status=$?
+      if [ -n "$FLOORPLAN_TOKEN" ]; then
+        node -e 'process.stdout.write(JSON.stringify({ body: require("fs").readFileSync("floorplan-comment.md", "utf8") }))' > pm-note.json
+        curl -s -o /dev/null -X POST -H "PRIVATE-TOKEN: $FLOORPLAN_TOKEN" -H "Content-Type: application/json" --data @pm-note.json \
+          "$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes" || true
+      fi
+      exit $status
+
+floorplan-main:
+  image: node:22
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main" && $CI_COMMIT_MESSAGE !~ /\[skip ci\]/
+  variables:
+    GIT_DEPTH: 0
+  script:
+    - node scripts/floorplan/generate-map.mjs --main
+    - |
+      OUT=$(node scripts/floorplan/generate-map.mjs --outputs)   # the map paths from floorplan.config.mjs
+      if [ -n "$(git status --porcelain -- $OUT)" ]; then
+        git config user.name "floorplan-bot"
+        git config user.email "floorplan-bot@example.com"
+        git add $OUT
+        git commit -m "chore: update project map [skip ci]"
+        git push "https://oauth2:${FLOORPLAN_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:main
+      fi

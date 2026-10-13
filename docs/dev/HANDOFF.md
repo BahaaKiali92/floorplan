@@ -1,10 +1,10 @@
-# Handoff: where project-map stands (2026-10-13, v0.9.0)
+# Handoff: where Floorplan stands (2026-10-13, v1.0.0)
 
 Read `CLAUDE.md` (repository root) first for the layout and working rules. This file says what is done and what comes next.
 
 ## Status
 
-- Version 0.9.0: Angular and Spring Boot (Java). All 229 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
+- Version 1.0.0 (renamed from project-map): Angular and Spring Boot (Java). All 268 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
   `SHERIFF_PKG` for the Sheriff tests);
   Playwright UI tests in `tests/ui/` (Angular and `spring_test.py`).
 - Spring Boot (0.5.0): map with kinds from annotations, HTTP endpoints and listeners, kind-based rules
@@ -17,10 +17,14 @@ Read `CLAUDE.md` (repository root) first for the layout and working rules. This 
 - Measured effect: `docs/experiments/2026-10-12-with-without-map.md`.
 - 0.6.0 = feedback from the first real Angular project (MinuteView, 2026-10-13), see CHANGELOG.md: gitignored docs/
   warning, no-CI mode, CRLF-safe CLAUDE.md writer, Windows notes, component-scoped services, near-miss hints, UI
-  lifetime note, `/project-map update` + version check. Plus Angular style-guide rules, Angular 20 suffix-less files,
+  lifetime note, `/floorplan update` + version check. Plus Angular style-guide rules, Angular 20 suffix-less files,
   and Sheriff as a rule source.
 - 0.7.0: edit-check hook, fix suggestions + Fix buttons, PR comment, split map + cache, Nx + ArchUnit rules,
   experiments/run.mjs, graph redesign, Linux + Windows CI (first Windows run not yet seen: check the Actions tab).
+- 1.0.0: new name Floorplan (old repositories keep working, `/floorplan update` migrates); CLAUDE.md rules as the
+  source of truth (`/floorplan rules`, `floorplan.claude-rules.json`, warnings, replaces contradicted rules, refresh
+  note); `pattern`/`requirePattern`; issues with file:line, source, how to fix; marketplace-ready. Publishing:
+  `docs/dev/PUBLISHING.md`. First real `/floorplan rules` run: `docs/experiments/2026-10-13-claude-md-rules.md`.
 - 0.9.0: everything from the external review plan: 14 new rule types, type-only imports, accepted list, budgets,
   errorFrom, why/docs, presets, extraction planner, change coupling, CODEOWNERS, dependents + related tests in the
   branch report, issues panel filter, keyboard, PNG/SVG export, workspace packages (Nx), one skill copy, LICENSE,
@@ -31,7 +35,7 @@ Read `CLAUDE.md` (repository root) first for the layout and working rules. This 
 ## Decisions so far
 
 - Angular first, then Spring Boot (done in 0.5.0, one plugin that detects the framework). React/Vue after real-project tests.
-- Name is still open ("project-map" is a working name; the GitHub repo is called project-play-map).
+- Name is still open ("floorplan" is a working name; the GitHub repo is called floorplan).
 - `CLAUDE.md` section wording: Claude runs its normal checks (type check, tests, lint) **and in addition**
   `map:check` (the experiment showed Claude otherwise skipped the type check).
 - Rules: prefer reading existing standard formats over copying rules from other Claude plugins.
@@ -46,8 +50,8 @@ Position it on those, not on "a map for Claude". Re-check the community catalog 
 
 ## Next steps (in this order)
 
-1. **Final name** before announcing (repo "project-play-map", plugin "project-map"): check the community plugin
-   catalog for collisions, then rename the repository and the marketplace name together.
+1. **Publish**: rename the GitHub repository to `floorplan`, push, tag v1.0.0, submit to the community
+   marketplace (`docs/dev/PUBLISHING.md`).
 2. **Run `experiments/run.mjs` on MinuteView** (5 tasks, 3 runs), and try the new preset + `typeImports: 'warn'`
    there: the interface-only imports were about half of its 43 issues. Put the numbers in docs/experiments.
 3. **Company Spring Boot project** (multi-module, Maven or Gradle). Never commit company code to this repo.

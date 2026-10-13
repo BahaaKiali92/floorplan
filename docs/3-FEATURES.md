@@ -1,6 +1,6 @@
 # 3 · Features
 
-Everything the `project-map` skill can do, in detail. Examples are from Angular; Spring Boot (Java) works the same way,
+Everything the `floorplan` skill can do, in detail. Examples are from Angular; Spring Boot (Java) works the same way,
 with the differences in [4-SPRING-BOOT.md](4-SPRING-BOOT.md).
 
 Contents:
@@ -18,17 +18,19 @@ Contents:
 
 ## 1. Skill commands
 
-Type these in Claude Code inside an Angular repository. (As a plugin: `/project-map:project-map …`.)
+Type these in Claude Code inside an Angular repository. (As a plugin: `/floorplan:floorplan …`.)
 
 | Command | What it does | Changes code? |
 |---|---|---|
-| `/project-map setup` | One-time setup per repository: copies the tools, writes the config (after you confirm), npm scripts, `CLAUDE.md` section, first maps; asks about the automatic refresh (hooks) and your CI. Run again to update the tools. | adds files |
-| `/project-map` or `/project-map map` | Refreshes the local map and branch report, then answers your question or summarizes: what this branch changed, issues it introduced or fixed, the structure, existing issues, surprising dependencies. Suggests move commands for misplaced files (doesn't run them). | refreshes `.project-map/` only |
-| `/project-map ui [port]` | Starts the bubble graph in the background, gives you the link (default http://localhost:4321; next free port if taken). | no |
-| `/project-map move <source> <target-folder>` | Dry run, shows the plan, then applies: files + companions moved, imports rewritten, map regenerated. Then type check and `map:check`. Paths relative to the app root; `.` = app root. | yes |
-| `/project-map move-methods <task or details>` | Re-runs the method analysis, asks you about every decision/blocker, then on a new branch: moves methods + helpers + state, wires injection, updates callers/templates/tests, type check, unit tests, map check, summary. | yes, after your answers |
+| `/floorplan setup` | One-time setup per repository: copies the tools, writes the config (after you confirm), npm scripts, `CLAUDE.md` section, first maps; asks about the automatic refresh (hooks) and your CI. Run again to update the tools. | adds files |
+| `/floorplan rules` | Reads the project's CLAUDE.md files and writes `floorplan.claude-rules.json`: every checkable rule as a check (with its source line and how to fix), contradicted built-in rules switched off, the rest listed as not checkable. Runs the map and reports the warnings. See [2-VALIDATION.md](2-VALIDATION.md#rules-from-claudemd-source-of-truth). | writes `floorplan.claude-rules.json` only |
+| `/floorplan update` | Brings the repository's copy of the tools (and the committed skill copy) to the plugin's version; migrates repositories set up as project-map. | updates `scripts/floorplan/` |
+| `/floorplan` or `/floorplan map` | Refreshes the local map and branch report, then answers your question or summarizes: what this branch changed, issues it introduced or fixed, the structure, existing issues, surprising dependencies. Suggests move commands for misplaced files (doesn't run them). | refreshes `.floorplan/` only |
+| `/floorplan ui [port]` | Starts the bubble graph in the background, gives you the link (default http://localhost:4321; next free port if taken). | no |
+| `/floorplan move <source> <target-folder>` | Dry run, shows the plan, then applies: files + companions moved, imports rewritten, map regenerated. Then type check and `map:check`. Paths relative to the app root; `.` = app root. | yes |
+| `/floorplan move-methods <task or details>` | Re-runs the method analysis, asks you about every decision/blocker, then on a new branch: moves methods + helpers + state, wires injection, updates callers/templates/tests, type check, unit tests, map check, summary. | yes, after your answers |
 
-Claude also uses the skill **without a command** when you work in a repository that has `docs/PROJECT_MAP.md` and
+Claude also uses the skill **without a command** when you work in a repository that has `docs/FLOORPLAN.md` and
 it creates, moves, renames or deletes files: it puts new files where the map says, moves files with the move tool
 (never by hand), and runs `npm run map` and `npm run map:check` afterwards. Questions like "where should a new
 guard go?", "which features depend on customers?" or "what did this branch change?" also use it. Claude never
@@ -36,11 +38,11 @@ runs `npm run map:main` or edits `docs/` unless you ask: that's CI's job.
 
 Examples:
 ```
-/project-map
-/project-map where should a new HTTP interceptor go?
-/project-map ui 4400
-/project-map move features/orders/ui/order-badge shared/ui
-/project-map move-methods move exportCsv and exportPdf from OrdersService into a new OrderExportService in features/orders/data-access
+/floorplan
+/floorplan where should a new HTTP interceptor go?
+/floorplan ui 4400
+/floorplan move features/orders/ui/order-badge shared/ui
+/floorplan move-methods move exportCsv and exportPdf from OrdersService into a new OrderExportService in features/orders/data-access
 ```
 
 ## 2. The maps
@@ -49,17 +51,17 @@ Examples:
 
 | | Main map | Local map | Branch report |
 |---|---|---|---|
-| Files | `docs/PROJECT_MAP.md`, `docs/project-map.json` | `.project-map/PROJECT_MAP.md`, `.project-map/project-map.json` | `.project-map/BRANCH_CHANGES.md`, `.project-map/branch.json` |
+| Files | `docs/FLOORPLAN.md`, `docs/floorplan.json` | `.floorplan/FLOORPLAN.md`, `.floorplan/floorplan.json` | `.floorplan/BRANCH_CHANGES.md`, `.floorplan/branch.json` |
 | Shows | structure of main | your working tree right now | what your branch changed compared with main |
 | Created by | `npm run map:main`, only CI after merges (and once at setup) | `npm run map`, hooks, the graph, `move-cli` | same as local |
 | Committed | yes | never | never |
 | Claude | loaded in every session via `CLAUDE.md` | read when needed | summary added at every session start (hook), file read when needed |
 
 Only CI writes the main map, so feature branches never touch it: **no merge conflicts**, and merging/rebasing main
-brings the current main map into your branch automatically. `.project-map/` contains its own `.gitignore`, so it never
+brings the current main map into your branch automatically. `.floorplan/` contains its own `.gitignore`, so it never
 shows up in `git status`.
 
-### `PROJECT_MAP.md` (main and local have the same format)
+### `FLOORPLAN.md` (main and local have the same format)
 
 | Section | Content |
 |---|---|
@@ -99,18 +101,18 @@ With the hook installed (`npm run map:hooks`), every Claude Code session (also a
 with a few factual lines, for example:
 
 ```
-Project map: branch report generated at session start.
+Floorplan: branch report generated at session start.
 Branch feature/demo compared with main at branch point 5f4bfdda.
 Changes on this branch: 0 files added, 1 moved, 0 deleted, 2 modified.
 Moved: features/customers/customer-list/customer-export.service.ts → features/customers/data-access/customer-export.service.ts
 Rule issues introduced by this branch: 1; fixed: 1; existing on main: 1.
 - features/settings/settings-page/settings-page.component.ts imports features/orders/data-access/orders.service.ts (features-are-isolated)
-Main structure: docs/PROJECT_MAP.md. Branch details: .project-map/BRANCH_CHANGES.md. Current working-tree map: .project-map/PROJECT_MAP.md.
+Main structure: docs/FLOORPLAN.md. Branch details: .floorplan/BRANCH_CHANGES.md. Current working-tree map: .floorplan/FLOORPLAN.md.
 ```
 
 The hook never blocks or slows a session noticeably and never fails it (errors are silent).
 
-### `project-map.json` (for tools)
+### `floorplan.json` (for tools)
 
 `root`, `files` (path, kind, name, selector, resolved project imports), `routes`, `areas` (area dependencies),
 `folders` and `rules` (from the config), `violations`. The graph is built from the local one plus the service list.
@@ -128,19 +130,19 @@ The hook never blocks or slows a session noticeably and never fails it (errors a
 
 - Above `splitAbove` files (default 1500; `split: true/false` forces it) the main map becomes an **overview**: a table of
   areas with purpose, size, main kinds, dependencies and issue count, plus one detail file per area in
-  `project-map-areas/` next to the map (local: `.project-map/areas/`). Claude reads the overview every session and
+  `floorplan-areas/` next to the map (local: `.floorplan/areas/`). Claude reads the overview every session and
   the detail file of the area it works in. Apache Fineract (5,476 classes): 8 KB overview instead of 25 KB.
-- Parse results are cached per file in `.project-map/cache-*.json` (size + modification time), so only changed files
-  are read again: Fineract 3.7 s cold, 1.1 s warm. Delete the cache any time; `PROJECT_MAP_NO_CACHE=1` turns it off.
+- Parse results are cached per file in `.floorplan/cache-*.json` (size + modification time), so only changed files
+  are read again: Fineract 3.7 s cold, 1.1 s warm. Delete the cache any time; `FLOORPLAN_NO_CACHE=1` turns it off.
 
 ## 3. The bubble graph
 
-Start: `/project-map ui` or `npm run map:ui`, then open http://localhost:4321. Works in light and dark mode,
+Start: `/floorplan ui` or `npm run map:ui`, then open http://localhost:4321. Works in light and dark mode,
 offline, desktop-sized browser windows (a narrow window stacks the panel below the graph).
 
 The page is drawn like a survey map: folders are contour rings with elevation tints (deeper folders are darker),
 files are coloured by kind like map symbols, and rule issues have a red dashed border. Light and dark mode follow the
-system. The Barlow font is bundled (`scripts/project-map/fonts/`, SIL Open Font License), so the page makes no
+system. The Barlow font is bundled (`scripts/floorplan/fonts/`, SIL Open Font License), so the page makes no
 requests outside your machine.
 
 Every placement issue has a **Fix** button ("Fix: move to features/customers/data-access/"): it opens the usual move
@@ -223,7 +225,7 @@ Then:
 - **Undo** (toast or header button) reverses the last move, imports included, while the server runs. Several undos
   work in order.
 
-Same engine from Claude (`/project-map move`) and from the terminal (`move-cli.mjs`). Details of what gets rewritten
+Same engine from Claude (`/floorplan move`) and from the terminal (`move-cli.mjs`). Details of what gets rewritten
 and the safety checks: [2-VALIDATION.md, A5](2-VALIDATION.md#a5-safety-checks-for-file-and-folder-moves).
 
 ## 5. Moving methods between services
@@ -264,7 +266,7 @@ Buttons: **Copy task for Claude** (to the clipboard) and **Close**.
 ### Let Claude do it
 
 ```
-/project-map move-methods <paste the task>
+/floorplan move-methods <paste the task>
 ```
 Claude re-runs the analysis on the current code, asks one question per decision, then edits on a new branch
 (`refactor/move-<method>-to-<target>`), keeps the injection style of the source (`inject()` or constructor), updates
@@ -279,47 +281,47 @@ All run from the repository root. Paths for `move-cli` and `analyze-cli` are rel
 
 ```bash
 # Maps
-node scripts/project-map/generate-map.mjs                  # = npm run map: local map + branch report (.project-map/)
-node scripts/project-map/generate-map.mjs --main           # = npm run map:main: main map in docs/ (CI on main)
-node scripts/project-map/generate-map.mjs --check          # = npm run map:check: fail only on NEW issues vs main
-node scripts/project-map/generate-map.mjs --check --strict # fail on every error issue
-node scripts/project-map/generate-map.mjs --session        # what the SessionStart hook prints for Claude
+node scripts/floorplan/generate-map.mjs                  # = npm run map: local map + branch report (.floorplan/)
+node scripts/floorplan/generate-map.mjs --main           # = npm run map:main: main map in docs/ (CI on main)
+node scripts/floorplan/generate-map.mjs --check          # = npm run map:check: fail only on NEW issues vs main
+node scripts/floorplan/generate-map.mjs --check --strict # fail on every error issue
+node scripts/floorplan/generate-map.mjs --session        # what the SessionStart hook prints for Claude
 #   options: --base <branch> (default: baseBranch from the config), --quiet, --config <file>
-#   debugging the branch point map: PROJECT_MAP_DEBUG=1 node scripts/project-map/generate-map.mjs
+#   debugging the branch point map: FLOORPLAN_DEBUG=1 node scripts/floorplan/generate-map.mjs
 
 # Planning (change nothing)
-node scripts/project-map/generate-map.mjs --plan-extract features-are-isolated [--to shared]
+node scripts/floorplan/generate-map.mjs --plan-extract features-are-isolated [--to shared]
 #   for the import issues of one rule: which files to move to a shared folder (with what they pull along from their
 #   area), how many issues of ALL rules that fixes and adds, and the move-cli commands
-node scripts/project-map/cochange.mjs [--since "6 months ago"] [--min 4] [--confidence 0.6] [--json]
-#   files in different areas that change together in git history (likely misplaced); also .project-map/COCHANGE.md
-node scripts/project-map/codeowners.mjs [--write] [--file .github/CODEOWNERS]
+node scripts/floorplan/cochange.mjs [--since "6 months ago"] [--min 4] [--confidence 0.6] [--json]
+#   files in different areas that change together in git history (likely misplaced); also .floorplan/COCHANGE.md
+node scripts/floorplan/codeowners.mjs [--write] [--file .github/CODEOWNERS]
 #   CODEOWNERS lines from the folder owners in the config (preview; --write updates only its own marked section)
 
 # Hooks
-node scripts/project-map/install-hooks.mjs                 # = npm run map:hooks (Claude + git)
-node scripts/project-map/install-hooks.mjs --claude | --git | --remove
+node scripts/floorplan/install-hooks.mjs                 # = npm run map:hooks (Claude + git)
+node scripts/floorplan/install-hooks.mjs --claude | --git | --remove
 
 # Graph server
-node scripts/project-map/server.mjs                         # = npm run map:ui, http://localhost:4321
-node scripts/project-map/server.mjs --port 4400 --config project-map.config.mjs
-#   D3: env D3_PATH, else the bundled scripts/project-map/d3.min.js, else node_modules/d3, else cdnjs
+node scripts/floorplan/server.mjs                         # = npm run map:ui, http://localhost:4321
+node scripts/floorplan/server.mjs --port 4400 --config floorplan.config.mjs
+#   D3: env D3_PATH, else the bundled scripts/floorplan/d3.min.js, else node_modules/d3, else cdnjs
 
 # Move files/folders
-node scripts/project-map/move-cli.mjs <source> <target-folder>           # dry run
-node scripts/project-map/move-cli.mjs <source> <target-folder> --apply   # do it (+ map regenerated)
-node scripts/project-map/move-cli.mjs <source> <target-folder> --json    # machine-readable plan
+node scripts/floorplan/move-cli.mjs <source> <target-folder>           # dry run
+node scripts/floorplan/move-cli.mjs <source> <target-folder> --apply   # do it (+ map regenerated)
+node scripts/floorplan/move-cli.mjs <source> <target-folder> --json    # machine-readable plan
 
 # Methods
-node scripts/project-map/analyze-cli.mjs --list                          # all services and their methods
-node scripts/project-map/analyze-cli.mjs --source <x.service.ts> --methods a,b --target-file <y.service.ts>
-node scripts/project-map/analyze-cli.mjs --source <x.service.ts> --methods a,b --target-folder <folder> --class NewService
+node scripts/floorplan/analyze-cli.mjs --list                          # all services and their methods
+node scripts/floorplan/analyze-cli.mjs --source <x.service.ts> --methods a,b --target-file <y.service.ts>
+node scripts/floorplan/analyze-cli.mjs --source <x.service.ts> --methods a,b --target-folder <folder> --class NewService
 #   add --json for the full analysis
 ```
 
 Exit codes: [2-VALIDATION.md, A7](2-VALIDATION.md#a7-exit-codes).
 
-Files in `scripts/project-map/`:
+Files in `scripts/floorplan/`:
 
 | File | Purpose |
 |---|---|
@@ -339,7 +341,7 @@ in the same browser:
 
 - requests with a `Host` other than `localhost`/`127.0.0.1`/`[::1]:<port>` get 403 (DNS rebinding);
 - `/api/*` requests with a foreign `Origin` get 403 (CSRF);
-- `/api/*` requests need the header `x-project-map-token`. The token is new on every start and is in the page
+- `/api/*` requests need the header `x-floorplan-token`. The token is new on every start and is in the page
   (`<meta name="pm-token">`); read it from `GET /` when scripting.
 - The page is served with a Content-Security-Policy and `X-Frame-Options: DENY`.
 
@@ -356,8 +358,8 @@ in the same browser:
 ## 8. Privacy and safety
 
 - Runs locally. No network calls, no telemetry (the graph's fonts and D3 are bundled). The graph server binds to 127.0.0.1.
-- Reads only your repository. Writes only: `.project-map/` (local), the files you move, `docs/PROJECT_MAP.md` and
-  `docs/project-map.json` only with `--main`, and `.claude/settings.json` / `.git/hooks/*` only when you install the hooks.
+- Reads only your repository. Writes only: `.floorplan/` (local), the files you move, `docs/FLOORPLAN.md` and
+  `docs/floorplan.json` only with `--main`, and `.claude/settings.json` / `.git/hooks/*` only when you install the hooks.
 - Every file move is previewed first; method moves never change code from the graph.
 - Everything ends up as a normal git diff you review. Work on a branch.
 

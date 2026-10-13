@@ -1,0 +1,55 @@
+# azure-pipelines-floorplan.yml  (or add these steps to your existing pipeline)
+# - Pull requests: fail only when the PR introduces NEW structure rule issues.
+# - Builds of main (after a merge): regenerate the main map (docs/ by default) and commit it. Only CI writes it.
+# Permissions: the build identity ("<Project> Build Service") needs "Contribute" on the repository and,
+# if main has branch policies, "Bypass policies when pushing". Otherwise use the alternative at the bottom.
+trigger:
+  branches:
+    include: [main]
+
+pr:
+  branches:
+    include: ['*']
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - checkout: self
+    fetchDepth: 0              # full history: the check compares with the branch point on main
+    persistCredentials: true   # lets the main build push the regenerated map
+
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '22.x'
+
+  - script: |
+      status=0
+      node scripts/floorplan/generate-map.mjs --check --pr-comment floorplan-comment.md || status=$?
+      # comment on the pull request (the build identity needs "Contribute to pull requests")
+      node -e 'process.stdout.write(JSON.stringify({ comments: [{ parentCommentId: 0, content: require("fs").readFileSync("floorplan-comment.md", "utf8"), commentType: 1 }], status: "closed" }))' > pm-thread.json
+      curl -s -o /dev/null -X POST -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" -H "Content-Type: application/json" --data @pm-thread.json \
+        "$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$(Build.Repository.ID)/pullRequests/$(System.PullRequest.PullRequestId)/threads?api-version=7.1" || true
+      exit $status
+    displayName: Floorplan check (only new issues fail) and PR comment
+    condition: eq(variables['Build.Reason'], 'PullRequest')
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+
+  - script: |
+      node scripts/floorplan/generate-map.mjs --main
+      OUT=$(node scripts/floorplan/generate-map.mjs --outputs)   # the map paths from floorplan.config.mjs
+      if [ -n "$(git status --porcelain -- $OUT)" ]; then
+        git config user.name "floorplan-bot"
+        git config user.email "floorplan-bot@example.com"
+        git add $OUT
+        git commit -m "chore: update project map [skip ci]"
+        git push origin HEAD:main
+      fi
+    displayName: Regenerate the main map
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+# Alternative if CI may not push to main: publish the map as a build artifact instead of committing it,
+# and let developers keep the committed map current with `node scripts/floorplan/generate-map.mjs --main` in a periodic small PR.
+#  - publish: docs
+#    artifact: floorplan
