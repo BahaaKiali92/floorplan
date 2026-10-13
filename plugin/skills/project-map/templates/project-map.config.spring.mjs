@@ -41,6 +41,26 @@ export default {
     'notifications': { purpose: 'Message listeners that react to events from other systems' },
   },
 
+  // Presets add rules and folder purposes; your own rules with the same name replace them, severity: 'off' drops one.
+  // Available: angular-feature-sliced, angular-nx, spring-layered, spring-hexagonal (scripts/project-map/presets/).
+  // presets: ['spring-layered'],
+
+  // Imports used only as types (interfaces, type aliases; erased at build time): 'error' (like any import),
+  // 'warn' (report as warnings) or 'ignore'. A rule can set its own typeImports.
+  typeImports: 'warn',
+
+  // Known exceptions: still listed (map, graph), but never counted or failing. Remove them once fixed (the map warns).
+  accepted: [
+    // { rule: 'features-are-isolated', file: 'features/orders/order-detail/order-detail.component.ts',
+    //   detail: 'customer-avatar', reason: 'shared avatar moves to shared/ui in JIRA-123' },
+  ],
+
+  // Budgets: allow up to n issues of a rule while you clean up. map:check fails when the count goes above the budget,
+  // and the allowance never goes up again (it follows main's count down). Lower the number as you fix issues.
+  budget: {
+    // 'features-are-isolated': 11,
+  },
+
   rules: [
     // ----- layers (work for package-by-feature and package-by-layer) -----
     {
@@ -92,5 +112,16 @@ export default {
     //   message: 'Repositories belong in repository/.' },
     // { name: 'domain-has-no-web', type: 'noImport', from: 'domain', toKinds: ['controller', 'dto'],
     //   message: 'The domain must not depend on the web layer.' },
+
+    // ----- more rule types (see docs/3-FEATURES.md, rule types). Each rule can also have why, docs and errorFrom. -----
+    // { name: 'constructor-injection', type: 'fieldInjection', severity: 'warn' },
+    // { name: 'proxy-annotations-on-public-methods', type: 'proxyAnnotations' },
+    // { name: 'no-package-cycles', type: 'noCycles' },
+    // { name: 'web-stays-out-of-services', type: 'noPackage', kinds: ['service', 'repository'],
+    //   packages: ['org.springframework.web.bind.annotation', 'jakarta.servlet'] },
+    // { name: 'layers', type: 'layers', layers: [['**/web'], ['**/service'], ['**/repository', '**/domain']] },
+    // { name: 'orphan-tests', type: 'orphanTests', severity: 'warn' },
+    // { name: 'big-classes', type: 'maxSize', maxLines: 800, severity: 'warn' },
+    // { name: 'unused-classes', type: 'unused', severity: 'warn' },
   ],
 };

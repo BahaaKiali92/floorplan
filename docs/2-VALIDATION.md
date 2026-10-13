@@ -92,6 +92,45 @@ When a file is in a folder whose name is close to an allowed one, the message sa
 The template has the first three on as warnings and the spec rule commented out (it is noisy in older apps).
 Make a rule an error once main is clean of it.
 
+### More rule types (0.9.0)
+
+Every rule has `name`, `type`, `message`, optional `severity` (`error` default, `warn`, `off`), and the options below.
+`files` / `from` limit which files are checked; `kinds` / `fromKinds` limit by kind; `except` skips paths.
+
+| Type | Options | Finds |
+|---|---|---|
+| `layers` | `layers`: top to bottom, each a folder pattern or a list of them (`['features', ['core', 'layout'], 'shared']`) | a file using a layer above its own. Files outside every layer are not checked |
+| `noCycles` | `level`: `area` (default) or `file`; `files` | areas (or files) that depend on each other in a circle. Reports only the **weakest imports** of each cycle (fewest imports, against the dominant direction), not every edge, so the list says what to cut. Type-only and lazy imports don't count |
+| `noPackage` | `packages`: npm names, deep paths with globs (`rxjs/internal/**`), Java packages (`org.springframework.jdbc`); `allowPackages`; `from`, `kinds` | use of a package where it is not allowed. Banned APIs a team lists as "never use X" belong here |
+| `maxSize` | `maxLines`, `maxFiles` (per folder) | files or folders grown too big (the current count is in the report) |
+| `maxFanIn` | `max` (default 30) | files imported by too many others (hub files that every change touches) |
+| `lazyBoundary` | `except` | Angular: a folder loaded with `loadChildren` / `loadComponent` that is also imported eagerly from outside (it ends up in the main bundle). Type-only imports are fine |
+| `orphanTests` | `files` | `x.spec.ts` without `x.ts`; Java `FooTest` in another package than its class `Foo` (left behind by a move) |
+| `purpose`, `owners` | `folders` (default: the `units`) | areas without a `purpose` / `owner` in the config |
+| `unused` | `exceptKinds`, `entries` | files nothing imports (routes, config, bootstrap files, `index.ts`, Spring beans and entities are skipped) |
+| `singleFileFolders` | `exceptKinds` (Angular default `component`: a component folder is normal) | a folder that holds one file and nothing else. The Fix moves the file one level up |
+| `relativeImports` | `maxUp` (default 2), `acrossAreas` (default true) | Angular: relative imports that climb too far or reach into another area (use the tsconfig alias) |
+| `routed` | `folders` (default `features/*`) | Angular: feature folders no route reaches |
+| `fieldInjection` | | Spring: `@Autowired` / `@Inject` / `@Resource` on fields (use constructor injection) |
+| `proxyAnnotations` | | Spring: `@Transactional`, `@Async`, `@Cacheable`, `@CachePut`, `@CacheEvict`, `@Retryable` on private, final or static methods, where Spring's proxy silently ignores them |
+
+### Rule behaviour: type-only imports, exceptions, budgets, dates, explanations
+
+| Setting | Where | Effect |
+|---|---|---|
+| `typeImports: 'error' \| 'warn' \| 'ignore'` | config, or per rule | Imports that bring in only interfaces and type aliases (also through barrel files) or use `import type` are erased at build time. `warn` reports them as warnings, `ignore` skips them. Reports mark them "(types only)". `noCycles` ignores them unless the rule says otherwise. Templates use `warn` |
+| `accepted: [{ rule, file, detail?, reason }]` | config | Known exceptions. `file` can be a pattern, `detail` a part of the issue text. They are listed under "Accepted exceptions" (map, graph) and never counted or failing. An entry that matches nothing anymore is reported, so the list doesn't rot |
+| `budget: { 'rule-name': n }` | config | `map:check` fails when a rule has more than `n` issues, or more than main has (the allowance only goes down). Moving an issue (one fixed, one new) passes. When the count drops, the check says to lower the number |
+| `errorFrom: '2027-01-01'` | rule | A warning until that date, then an error ("warning until …" in reports) |
+| `why`, `docs` | rule | One sentence on why the rule exists and a link; shown in the map, `map:check`, the edit check for Claude and the graph |
+
+### Presets
+
+`presets: ['angular-feature-sliced']` in the config starts from a ready set of rules and folder purposes
+(`scripts/project-map/presets/`): `angular-feature-sliced`, `angular-nx`, `spring-layered`, `spring-hexagonal`. Your
+own rules come on top: same `name` replaces the preset's rule, `severity: 'off'` switches it off. A path
+(`presets: ['./team-rules.mjs']`) works too, for a company-wide preset.
+
 ### Nx and ArchUnit
 
 - **Nx** (`nx.json` present): the `depConstraints` of `@nx/enforce-module-boundaries` (from `.eslintrc.json` or

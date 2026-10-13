@@ -52,6 +52,26 @@ export default {
     // 'features/orders': { purpose: 'Order list, details and checkout', owner: 'team-orders' },
   },
 
+  // Presets add rules and folder purposes; your own rules with the same name replace them, severity: 'off' drops one.
+  // Available: angular-feature-sliced, angular-nx, spring-layered, spring-hexagonal (scripts/project-map/presets/).
+  // presets: ['angular-feature-sliced'],
+
+  // Imports used only as types (interfaces, type aliases; erased at build time): 'error' (like any import),
+  // 'warn' (report as warnings) or 'ignore'. A rule can set its own typeImports.
+  typeImports: 'warn',
+
+  // Known exceptions: still listed (map, graph), but never counted or failing. Remove them once fixed (the map warns).
+  accepted: [
+    // { rule: 'features-are-isolated', file: 'features/orders/order-detail/order-detail.component.ts',
+    //   detail: 'customer-avatar', reason: 'shared avatar moves to shared/ui in JIRA-123' },
+  ],
+
+  // Budgets: allow up to n issues of a rule while you clean up. map:check fails when the count goes above the budget,
+  // and the allowance never goes up again (it follows main's count down). Lower the number as you fix issues.
+  budget: {
+    // 'features-are-isolated': 11,
+  },
+
   rules: [
     {
       name: 'features-are-isolated',
@@ -111,5 +131,22 @@ export default {
     // Every component/service has a spec next to it. Often noisy in older apps: enable when you want it.
     // { name: 'specs-next-to-code', type: 'companion', kinds: ['component', 'service', 'pipe', 'directive', 'guard'],
     //   companion: '.spec.ts', severity: 'warn', message: 'Unit tests live next to the code they test.' },
+
+    // ----- more rule types (see docs/3-FEATURES.md, rule types). Each rule can also have
+    //       why: 'one sentence' and docs: 'https://...' (shown in reports, the edit check and the graph), and
+    //       errorFrom: '2027-01-01' (a warning until that date, then an error). -----
+    // { name: 'layers', type: 'layers', layers: ['features', ['layout', 'core'], 'shared'] },
+    // { name: 'no-area-cycles', type: 'noCycles' },                      // level: 'file' for file-level cycles
+    // { name: 'no-store-in-shared', type: 'noPackage', from: 'shared', packages: ['@ngrx/store'] },
+    // { name: 'lazy-features-stay-lazy', type: 'lazyBoundary', severity: 'warn' },
+    // { name: 'aliases-across-areas', type: 'relativeImports', maxUp: 2, severity: 'warn' },
+    // { name: 'features-are-routed', type: 'routed', folders: 'features/*', severity: 'warn' },
+    // { name: 'big-files', type: 'maxSize', maxLines: 400, maxFiles: 30, severity: 'warn' },
+    // { name: 'hub-files', type: 'maxFanIn', max: 40, severity: 'warn' },
+    // { name: 'orphan-specs', type: 'orphanTests', severity: 'warn' },
+    // { name: 'unused-files', type: 'unused', severity: 'warn' },
+    // { name: 'single-file-folders', type: 'singleFileFolders', severity: 'warn' },
+    // { name: 'areas-have-a-purpose', type: 'purpose', folders: 'features/*', severity: 'warn' },
+    // { name: 'areas-have-an-owner', type: 'owners', folders: 'features/*', severity: 'warn' },
   ],
 };

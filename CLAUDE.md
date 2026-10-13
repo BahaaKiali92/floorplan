@@ -8,20 +8,20 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 
 | Path | What |
 |---|---|
-| `skill/project-map/` | **Source of truth.** The skill users install (`SKILL.md`, `reference/*.md`, `scripts/`, `templates/`). |
-| `skill/project-map/scripts/` | The tools, copied into target repos by `/project-map setup`. Node 18+, **zero dependencies**. |
-| `plugin/` | Claude Code plugin wrapping the same skill. `plugin/skills/project-map` is a **generated copy**: never edit it, run `scripts/sync-plugin.sh`. |
+| `plugin/skills/project-map/` | **The skill** (only copy): `SKILL.md`, `reference/*.md`, `scripts/`, `templates/`. Installed by the plugin, or copied to `~/.claude/skills/`. |
+| `plugin/skills/project-map/scripts/` | The tools, copied into target repos by `/project-map setup`. Node 18+, **zero dependencies**. |
+| `plugin/.claude-plugin/plugin.json` | Plugin manifest (version, author). |
 | `.claude-plugin/marketplace.json` | Makes this repo a plugin marketplace (`/plugin marketplace add <owner>/<repo>`). |
 | `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`, `4-SPRING-BOOT.md`; `experiments/` for measured results. |
 | `sample-app/` | Tiny Angular-shaped app with seeded issues (type stubs instead of real Angular). Used by tests and docs. |
 | `sample-spring-app/` | Small Spring Boot (Maven) app with seeded issues. Compiled in tests with `javac` against `tests/java-stubs/`. |
-| `tests/run.sh` | End-to-end tests on temp copies of both samples (162 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
-| `scripts/` | `sync-plugin.sh`, `build-kit.sh` (→ `dist/project-map-kit.zip`). |
-| `README-KIT.md` | README that goes into the zip kit. |
+| `tests/run.sh` | End-to-end tests on temp copies of both samples (229 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
+| `scripts/` | `build-kit.sh` (→ `dist/project-map-kit.zip`). |
+| `docs/dev/HANDOFF.md` | Status and next steps for whoever (or whichever Claude session) continues the work. |
 | `experiments/` | `run.mjs`: with/without-map comparison with headless Claude Code on any repo. |
 | `.github/workflows/test.yml` | `tests/run.sh` on Linux and Windows. |
 
-## Scripts (in `skill/project-map/scripts/`)
+## Scripts (in `plugin/skills/project-map/scripts/`)
 
 | File | Role |
 |---|---|
@@ -43,7 +43,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 ## Working rules
 
 - Copy the tools with `cp -r scripts/. <dest>` (there is a `fonts/` subfolder).
-- Edit `skill/project-map/` only. After any change: `./scripts/sync-plugin.sh`, then `./tests/run.sh`.
+- After any change: `./tests/run.sh` (and `claude plugin validate .` when the CLI is installed).
 - Run tests: `./tests/run.sh` (needs network for `npm install` in the temp copy) or
   `TS_PATH=$(npm root -g)/typescript ./tests/run.sh`. All checks must pass before committing.
 - UI changes: also run the Playwright tests (see `tests/ui/README.md`) and look at screenshots.
@@ -53,7 +53,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 - The session hook must never fail or print noise: errors exit 0 silently; output stays factual and < 3,500 chars.
 - Anything that writes to user code must preview first (dry run) and be undoable via git.
 - Every user-visible change: update `docs/` (setup / validation / features), add a test in `tests/run.sh`, bump
-  `version` in `plugin/.claude-plugin/plugin.json` and `skill/project-map/scripts/VERSION`, add a line to `CHANGELOG.md`.
+  `version` in `plugin/.claude-plugin/plugin.json` and `plugin/skills/project-map/scripts/VERSION`, add a line to `CHANGELOG.md`.
 - Release a kit: `./scripts/build-kit.sh` → `dist/project-map-kit.zip`.
 
 ## Known limits / ideas

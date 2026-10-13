@@ -22,3 +22,12 @@ Spring Boot sample (`sample-spring-app/`, prepared the same way with `templates/
 node scripts/project-map/server.mjs --port 4392   # in the prepared copy, on a branch
 python3 spring_test.py ./sshots 4392              # overview, class move preview + move + undo, method-move preview
 ```
+
+Rule issues panel, keyboard and image export (a sample-app copy with `presets: ['angular-feature-sliced']`):
+
+```bash
+node scripts/project-map/server.mjs --port 4400
+python3 issues_test.py ./ishots 4400              # filter by rule/severity, jump, Tab/Enter/Escape, "/", PNG + SVG
+```
+
+The page's Content-Security-Policy forbids eval, so tests poll instead of using `wait_for_function` with a string.

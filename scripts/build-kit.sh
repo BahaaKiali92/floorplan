@@ -3,12 +3,12 @@
 # (README, docs, the skill, the plugin marketplace, the sample apps).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-./scripts/sync-plugin.sh >/dev/null
 OUT=dist/project-map-kit
 rm -rf dist && mkdir -p "$OUT/skill" "$OUT/plugin-marketplace/.claude-plugin" "$OUT/plugin-marketplace/plugins"
-cp README-KIT.md "$OUT/README.md"
+cp README.md LICENSE CHANGELOG.md "$OUT/"
+mkdir -p "$OUT/docs" && cp -r docs/img "$OUT/docs/"
 cp -r docs "$OUT/"
-cp -r skill/project-map "$OUT/skill/"
+cp -r plugin/skills/project-map "$OUT/skill/"
 cp .claude-plugin/marketplace.json "$OUT/plugin-marketplace/.claude-plugin/"
 sed -i.bak 's#"source": "./plugin"#"source": "./plugins/project-map"#' "$OUT/plugin-marketplace/.claude-plugin/marketplace.json" && rm -f "$OUT/plugin-marketplace/.claude-plugin/marketplace.json.bak"
 cp -r plugin "$OUT/plugin-marketplace/plugins/project-map"

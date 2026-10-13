@@ -332,6 +332,23 @@ export const SPRING_TOTALS = ['controller', 'service', 'repository', 'entity', '
 // Every .java file under scanRoot (main and test), with FQNs, packages and identifier sets.
 const FQN_RX = /\b[a-z_$][\w$]*(?:\.[a-z_$][\w$]*)+\.[A-Z][\w$]*/g;
 const ENDPOINT_HINT = /@(RestController|Controller|Path|KafkaListener|RabbitListener|JmsListener|SqsListener|ServiceBusListener|Scheduled)\b/;
+// Facts for the Spring rules (cached): size, field injection, proxy annotations on methods Spring's proxy can't intercept
+const ANN_ARGS = String.raw`(?:\s*\((?:[^()]|\([^()]*\))*\))?`;
+const FIELD_INJECT_RX = new RegExp(String.raw`@(Autowired|Inject|Resource)\b${ANN_ARGS}\s+((?:@[\w.]+${ANN_ARGS}\s+)*)((?:(?:private|protected|public|static|final|transient|volatile)\s+)*)[\w$.<>\[\], ?]+?\s+([A-Za-z_$][\w$]*)\s*(?:;|=)`, 'g');
+const PROXY_RX = new RegExp(String.raw`@(Transactional|Async|Cacheable|CachePut|CacheEvict|Retryable)\b${ANN_ARGS}\s+((?:@[\w.]+${ANN_ARGS}\s+)*)((?:(?:public|protected|private|static|final|synchronized|abstract|default)\s+)*)(?:<[^>]*>\s*)?[\w$.<>\[\], ?]+?\s+([A-Za-z_$][\w$]*)\s*\(`, 'g');
+export function springFacts(src, masked) {
+  const f = { lines: src.split('\n').length };
+  const inject = [...masked.matchAll(FIELD_INJECT_RX)].map((m) => m[4]);
+  if (inject.length) f.fieldInjection = inject;
+  const proxy = [];
+  for (const m of masked.matchAll(PROXY_RX)) {
+    const mod = (m[3].match(/\b(private|final|static)\b/) || [])[1];
+    if (mod) proxy.push({ annotation: m[1], method: m[4], modifier: mod });
+  }
+  if (proxy.length) f.proxyIssues = proxy;
+  return f;
+}
+
 export class JavaIndex {
   // options.cache (cache.mjs): "lite" index for the map, built from cached facts without keeping the sources.
   // Without a cache, every file keeps its source (moves and the method analysis need it).
@@ -357,6 +374,7 @@ export class JavaIndex {
       const primaryName = path.basename(abs, '.java');
       const t = p.types.find((x) => x.name === primaryName) || p.types[0];
       info.endpoints = t && ENDPOINT_HINT.test(p.masked) ? endpointsOf(info, t, '') : [];
+      Object.assign(info, springFacts(src, p.masked));
       if (this.cache && srcOverride === undefined) {
         const { src: _s, masked: _m, abs: _a, ...facts } = info;
         this.cache.set(abs, facts);
@@ -501,10 +519,26 @@ export function scanSpring({ ROOT, scanRoot, config, matchAny, cache }) {
     const deps = index.depsOf(info);
     for (const f of deps.files) if (inRoot(f) && !index.files.get(f).test) entry.imports.push(rel(f));
     for (const e of deps.externals) { const lib = libraryOf(e); if (lib) externals.set(lib, (externals.get(lib) || 0) + 1); }
+    // in memory only (not in the JSON): facts for the rules
+    entry.lines = info.lines;
+    entry._ext = deps.externals;
+    if (info.fieldInjection) entry._fieldInjection = info.fieldInjection;
+    if (info.proxyIssues) entry._proxyIssues = info.proxyIssues;
     entry.imports.sort();
     for (const e of info.endpoints || []) routes.push({ ...e, file: p });
     files.push(entry);
   }
   files.sort((a, b) => a.path.localeCompare(b.path));
-  return { files, externals, routes, testCount };
+  // test classes (FooTest, FooTests, FooIT) left in the old package after class Foo moved to another one.
+  // (A test of a class that is gone entirely would not compile; tests not named after a class are not checked.)
+  const pkgsOf = new Map();
+  for (const i of index.files.values()) if (!i.test) for (const n of i.typeNames) { if (!pkgsOf.has(n)) pkgsOf.set(n, new Set()); pkgsOf.get(n).add(i.pkg); }
+  const orphanTests = [];
+  for (const info of index.files.values()) {
+    if (!info.test || !inTests(info.abs)) continue;
+    const m = /^(\w+?)(Test|Tests|IT|ITCase)\.java$/.exec(path.basename(info.abs));
+    const where = m && pkgsOf.get(m[1]);
+    if (where && !where.has(info.pkg) && where.size === 1) orphanTests.push({ test: toPosix(path.relative(scanRoot, info.abs)), subject: m[1], movedTo: [...where][0] });
+  }
+  return { files, externals, routes, testCount, orphanTests };
 }

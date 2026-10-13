@@ -1,18 +1,24 @@
 {
   "name": "project-map",
   "displayName": "Project Map",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Project map for Angular and Spring Boot (Java): a generated structure map Claude reads for every task, an interactive bubble graph to move files, classes and packages (imports rewritten), structure rules checked in CI (only new issues fail), and an impact preview for moving methods between services.",
   "author": {
-    "name": "Frontend Team"
+    "name": "Bahaa Kiali",
+    "url": "https://github.com/BahaaKayali92"
   },
   "license": "MIT",
   "keywords": [
     "angular",
-    "spring-boot",
-    "java",
     "architecture",
+    "architecture-rules",
+    "code-structure",
+    "codeowners",
+    "java",
+    "project-structure",
     "refactoring",
-    "project-structure"
-  ]
+    "spring-boot"
+  ],
+  "homepage": "https://github.com/BahaaKayali92/project-play-map",
+  "repository": "https://github.com/BahaaKayali92/project-play-map"
 }

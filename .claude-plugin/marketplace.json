@@ -2,13 +2,14 @@
   "name": "project-map-tools",
   "description": "Project structure tools for Angular and Spring Boot teams",
   "owner": {
-    "name": "Frontend Team"
+    "name": "Bahaa Kiali",
+    "url": "https://github.com/BahaaKayali92"
   },
   "plugins": [
     {
       "name": "project-map",
       "source": "./plugin",
-      "description": "Bubble-graph map of an Angular or Spring Boot app: drill down, move files, classes and packages with import rewriting, preview moving methods between services, branch reports and a new-issues-only CI check"
+      "description": "Structure map, rules and a bubble graph for Angular and Spring Boot: move files, classes and packages with imports rewritten, check rules in CI (only new issues fail), plan refactorings"
     }
   ]
 }

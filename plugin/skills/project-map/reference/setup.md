@@ -79,6 +79,14 @@ Start from `<SKILL_DIR>/templates/project-map.config.spring.mjs` and adapt it:
   otherwise the map never reaches teammates or CI. `--main` also warns about this.
 - **CI**: ask now whether a CI job will regenerate the main map (step 8). Set `ci: true` or `ci: false` in the config;
   it decides the CLAUDE.md wording.
+- **Preset**: if the layout matches one, start from it instead of the template rules (`presets: ['<name>']` in the
+  config, the project's own rules on top): `angular-feature-sliced` (features/ + shared/ + core/), `angular-nx`
+  (apps/ + libs/), `spring-layered` (controller → service → repository, by feature or by layer), `spring-hexagonal`
+  (domain / application / adapter). Read `<SKILL_DIR>/scripts/presets/<name>.mjs` to list its rules for the user.
+- **Count before choosing**: write the proposed config, run `node scripts/project-map/generate-map.mjs --quiet`, count
+  the `violations` per `rule` in `.project-map/project-map.json`, and show those numbers with the proposal. For a rule with many existing issues, propose one of: `severity: 'warn'`,
+  `errorFrom: '<date>'` (warning now, error later), or a `budget` (the count may only go down). Interface-only imports
+  are reported as warnings by default (`typeImports: 'warn'`); known, accepted exceptions go in `accepted` with a reason.
 - Show the proposed purposes and rules as a short list and ask the user to confirm or adjust before writing.
 - Write `framework: 'angular'` or `framework: 'spring'` in the config.
 

@@ -84,6 +84,12 @@ shows only your branch's work, never what others merged to main meanwhile. Secti
 removed folders, new and removed dependencies between areas. It also says when main has newer commits you haven't
 merged. Details of the comparison: [2-VALIDATION.md, A3](2-VALIDATION.md#a3-mapcheck-and-the-branch-report).
 
+It also lists the **unchanged files that use the changed files** (worth a look before a pull request) and the command
+that runs **only the related tests**: `npx jest --findRelatedTests …` (Jest), `npx vitest run --related …` (Vitest),
+`npx ng test --include …` (Karma, specs of the changed and dependent files), `mvn test -Dtest=…` or
+`./gradlew test --tests …` (Spring: test classes of the changed and dependent classes). The session summary includes
+the command too.
+
 Speed: the map of the branch point is built once and cached per branch point (~2–5 s on 4,400 files the first time,
 then ~0.5 s per run).
 
@@ -178,12 +184,16 @@ uses it). The command-line equivalent is `move-cli.mjs <file> --fix`.
 | Click a breadcrumb item | jump to that level |
 | Search box | type part of a path; ↑/↓ to choose, Enter to jump (folders open, files are selected, methods open their service) |
 | Links in the side panel | jump to that file or folder |
+| Tab / Shift+Tab | move between the shapes of the current level (each has a label for screen readers) |
+| Enter or Space on a shape | same as a click |
+| `/` | focus the search box |
+| "Save image" | the current view (folder, zoom, selection) as PNG or SVG, for pull requests and slides |
 
 ### Side panel views
 
 | Selected | Shows |
 |---|---|
-| nothing (app root) | branch section (vs main: added/moved/deleted/modified, new and fixed issues), all rule issues (click to jump), dependencies between areas, how-to |
+| nothing (app root) | branch section (vs main: added/moved/deleted/modified, new and fixed issues), all rule issues with a filter by rule and by errors/warnings (click a path to jump; why, docs link and Fix button per issue), accepted exceptions (collapsed), dependencies between areas, how-to |
 | folder | path, purpose and owner (or a hint to add one), "Move to another folder…", issues inside, contents |
 | file | kind and selector, folder purpose, "Move to another folder…", rule issues with messages, imports, imported by |
 | service | class name, what it injects, list of methods with checkboxes (visibility, lines), "Move N selected to…", "Move file to another folder…", imported by |
@@ -277,6 +287,15 @@ node scripts/project-map/generate-map.mjs --session        # what the SessionSta
 #   options: --base <branch> (default: baseBranch from the config), --quiet, --config <file>
 #   debugging the branch point map: PROJECT_MAP_DEBUG=1 node scripts/project-map/generate-map.mjs
 
+# Planning (change nothing)
+node scripts/project-map/generate-map.mjs --plan-extract features-are-isolated [--to shared]
+#   for the import issues of one rule: which files to move to a shared folder (with what they pull along from their
+#   area), how many issues of ALL rules that fixes and adds, and the move-cli commands
+node scripts/project-map/cochange.mjs [--since "6 months ago"] [--min 4] [--confidence 0.6] [--json]
+#   files in different areas that change together in git history (likely misplaced); also .project-map/COCHANGE.md
+node scripts/project-map/codeowners.mjs [--write] [--file .github/CODEOWNERS]
+#   CODEOWNERS lines from the folder owners in the config (preview; --write updates only its own marked section)
+
 # Hooks
 node scripts/project-map/install-hooks.mjs                 # = npm run map:hooks (Claude + git)
 node scripts/project-map/install-hooks.mjs --claude | --git | --remove
@@ -350,12 +369,12 @@ Current limits:
 - Template and test-mock detection for methods is text-based (can list a same-named method of another object).
 - Undo history lives in the running graph server; after a restart use git. For long sessions run the server in your
   own terminal (`npm run map:ui`): started from Claude it is a background task that stops after a while.
-- Rules: `noImport`, `placement`, and the style-guide types `publicApi`, `naming`, `oneDeclaration`, `companion`.
-  Sheriff is read when the project uses it; Nx module boundaries are not read yet.
+- Rules: see [2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules) for all types. Sheriff, Nx module boundaries and
+  ArchUnit are read when the project uses them. "Types only" is detected for interfaces and type aliases, not for
+  classes used only in type positions.
 - Very large apps: the first method analysis can take a few seconds (the TypeScript program is built once, then reused).
 
 Ideas for next versions:
 - React and Vue.
-- Read Nx module boundaries (Sheriff is supported since 0.6.0).
 - Rewrite `.scss` relative imports on move.
 - Graphify integration for deep "how is X connected to Y" questions.

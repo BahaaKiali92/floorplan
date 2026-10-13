@@ -97,7 +97,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/') {
       const page = fs.readFileSync(path.join(here, 'ui.html'), 'utf8').replace('</head>', `<meta name="pm-token" content="${TOKEN}">\n</head>`);
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY',
-        'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'" });
+        'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'none'" });
       return res.end(page);
     }
     if (req.method === 'GET' && url.pathname === '/vendor/d3.min.js') {

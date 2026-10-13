@@ -116,6 +116,29 @@ The template has rules for the common layouts:
 { name: 'domain-is-pure', type: 'noImport', from: 'domain', to: ['adapter', 'config'] },
 ```
 
+### Spring presets and rules (0.9.0)
+
+`presets: ['spring-layered']` gives controller → service → repository rules (by kind, so they work for package by
+feature and by layer), DTOs in controllers, constructor injection, proxy annotations, package cycles, HTTP types
+outside the web layer, orphaned tests and very big classes. `presets: ['spring-hexagonal']` gives
+adapter → application → domain layers (packages named `adapter(s)`, `infrastructure`, `web`, `persistence`,
+`application`, `domain` anywhere below root) and a framework-free domain (`noPackage` on `org.springframework`,
+`jakarta.persistence`, Jackson).
+
+Spring-specific rule types:
+
+| Type | Finds |
+|---|---|
+| `fieldInjection` | `@Autowired` / `@Inject` / `@Resource` fields. Constructor injection makes beans testable without Spring and their dependencies final |
+| `proxyAnnotations` | `@Transactional`, `@Async`, `@Cacheable`, `@CachePut`, `@CacheEvict`, `@Retryable` on private, final or static methods: Spring's proxy cannot intercept them, so the annotation is silently ignored |
+| `noPackage` with Java packages | e.g. `packages: ['org.springframework.web.bind.annotation', 'jakarta.servlet']` for services |
+| `noCycles` | packages (areas) that depend on each other in a circle; only the weakest imports are reported |
+| `orphanTests` | `FooTest` / `FooTests` / `FooIT` in another package than its class `Foo` (left behind when the class moved). Tests not named after a class are ignored |
+
+All other types (layers, budgets, accepted exceptions, `errorFrom`, `why`/`docs`):
+[2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules). The branch report ends with the Maven or Gradle command
+that runs the test classes of the changed classes and the classes that use them.
+
 ## 4. What the map shows
 
 Same sections as for Angular, with Java content:

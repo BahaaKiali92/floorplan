@@ -40,6 +40,12 @@ The framework is `framework` in `project-map.config.mjs` (`angular` or `spring`)
 | Local map + branch report | `node scripts/project-map/generate-map.mjs` (`npm run map`) |
 | Rule check, only new issues fail | `node scripts/project-map/generate-map.mjs --check` (`npm run map:check`) |
 | Main map in docs/ (CI only) | `node scripts/project-map/generate-map.mjs --main` (`npm run map:main`) |
+| Plan moving cross-area imports to shared code | `node scripts/project-map/generate-map.mjs --plan-extract <rule> [--to shared]` (changes nothing) |
+| Files in different areas that change together (git history) | `node scripts/project-map/cochange.mjs` |
+| CODEOWNERS from folder owners in the config | `node scripts/project-map/codeowners.mjs` (preview), `--write` |
+
+For "how do we untangle X", "what should move to shared", "which files are misplaced" questions, use the extraction
+planner and the change coupling report, and present their numbers; don't move anything without being asked.
 
 ## map
 
@@ -52,6 +58,8 @@ Two layers: `docs/PROJECT_MAP.md` is the structure of **main** (committed, regen
    current working tree).
 3. Answer the user's question. Without a specific question, summarize: what this branch changed, rule issues it
    introduced or fixed, then the overall structure, existing rule issues and surprising area dependencies.
+   `BRANCH_CHANGES.md` also lists the unchanged files that use the changed ones and the command for the related tests:
+   mention both when the user is about to verify or open a pull request.
 4. For a misplaced file, suggest the fix as a dry-run command:
    `node scripts/project-map/move-cli.mjs <source> <target-folder>`. Don't apply it unless asked.
 5. Never run the main map command or edit `docs/PROJECT_MAP.md` unless the user explicitly asks (CI's job; first setup is the exception).

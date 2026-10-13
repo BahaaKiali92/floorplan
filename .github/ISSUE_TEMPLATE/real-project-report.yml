@@ -1,0 +1,44 @@
+name: Real-project report
+description: How project-map worked on a real Angular or Spring Boot repository
+labels: [report]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks! Please don't paste company code: describe the shape of the project instead."
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Framework
+      options: [Angular, Angular with Nx, Spring Boot (Maven), Spring Boot (Gradle), other]
+    validations: { required: true }
+  - type: input
+    id: size
+    attributes:
+      label: Size
+      description: Roughly how many source files, areas/features, modules
+      placeholder: "~400 files, 13 features, standalone components"
+  - type: input
+    id: version
+    attributes:
+      label: project-map version
+      description: scripts/project-map/VERSION
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup
+      description: Preset and rules you chose; what you had to change by hand
+  - type: textarea
+    id: false-positives
+    attributes:
+      label: False positives or missed issues
+      description: Rule, kind of file or import, and why it is (not) a problem
+  - type: textarea
+    id: claude
+    attributes:
+      label: Effect on Claude
+      description: Did Claude place, move or check things differently with the map?
+  - type: textarea
+    id: timing
+    attributes:
+      label: Timing
+      description: "time node scripts/project-map/generate-map.mjs (first and second run)"

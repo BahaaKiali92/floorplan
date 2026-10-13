@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.9.0 (2026-10-13)
+
+Rules
+- New rule types: `layers`, `noCycles` (area or file level; reports only the weakest imports of each cycle),
+  `noPackage` (npm packages, deep imports, Java packages), `maxSize`, `maxFanIn`, `lazyBoundary`, `orphanTests`,
+  `purpose`, `owners`, `unused`, `singleFileFolders` (with a Fix), `relativeImports`, `routed`; Spring:
+  `fieldInjection`, `proxyAnnotations` (`@Transactional`/`@Async`/`@Cacheable` on private, final or static methods).
+- Imports used only as types (interfaces and type aliases, also through barrel files, and `import type`):
+  `typeImports: 'error' | 'warn' | 'ignore'` globally or per rule. Templates use `'warn'`.
+- `accepted`: documented exceptions with a reason; listed, never counted; stale entries are reported.
+- `budget`: allowed number of issues per rule; follows main's count down (ratchet).
+- Per rule: `errorFrom` (warning until a date), `why` and `docs` (shown in reports, the edit check and the graph).
+- Presets: `angular-feature-sliced`, `angular-nx`, `spring-layered`, `spring-hexagonal` (`presets: [...]`).
+
+Planning and reports
+- Extraction planner: `generate-map.mjs --plan-extract <rule> [--to shared]` simulates moving the imported files (with
+  what they pull along) and reports fixed and added issues for every rule, plus the move commands.
+- `cochange.mjs`: files in different areas that change together in git history.
+- `codeowners.mjs`: CODEOWNERS section from the folder owners in the config.
+- Branch report: unchanged files that use the changed ones, and the command for the related tests (Jest, Vitest,
+  `ng test --include`, Maven, Gradle); also in the session summary.
+
+Graph
+- Rule issues panel: filter by rule and severity, why/docs, accepted exceptions; folder-level issues on folders.
+- Keyboard: Tab through shapes, Enter opens, Escape goes up, `/` searches; ARIA labels.
+- "Save image": the current view as PNG or SVG.
+
+Project
+- One copy of the skill (`plugin/skills/project-map`; `skill/` and `sync-plugin.sh` removed), LICENSE (MIT), author,
+  CONTRIBUTING and issue templates, merged README with screenshots and test badge, version tags, `docs/dev/HANDOFF.md`.
+
 ## 0.8.0 (2026-10-13)
 
 - Graph: every file kind has its own shape in the bubble layout (component/controller = rounded square,

@@ -1,10 +1,10 @@
-# Handoff: where project-map stands (2026-10-13, v0.8.0)
+# Handoff: where project-map stands (2026-10-13, v0.9.0)
 
-Read `CLAUDE.md` first for the layout and working rules. This file says what is done and what comes next.
+Read `CLAUDE.md` (repository root) first for the layout and working rules. This file says what is done and what comes next.
 
 ## Status
 
-- Version 0.8.0: Angular and Spring Boot (Java). All 162 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
+- Version 0.9.0: Angular and Spring Boot (Java). All 229 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
   `SHERIFF_PKG` for the Sheriff tests);
   Playwright UI tests in `tests/ui/` (Angular and `spring_test.py`).
 - Spring Boot (0.5.0): map with kinds from annotations, HTTP endpoints and listeners, kind-based rules
@@ -21,6 +21,10 @@ Read `CLAUDE.md` first for the layout and working rules. This file says what is 
   and Sheriff as a rule source.
 - 0.7.0: edit-check hook, fix suggestions + Fix buttons, PR comment, split map + cache, Nx + ArchUnit rules,
   experiments/run.mjs, graph redesign, Linux + Windows CI (first Windows run not yet seen: check the Actions tab).
+- 0.9.0: everything from the external review plan: 14 new rule types, type-only imports, accepted list, budgets,
+  errorFrom, why/docs, presets, extraction planner, change coupling, CODEOWNERS, dependents + related tests in the
+  branch report, issues panel filter, keyboard, PNG/SVG export, workspace packages (Nx), one skill copy, LICENSE,
+  CONTRIBUTING, issue templates, tags. Open-source runs: `docs/experiments/2026-10-13-open-source-runs.md`.
 - 0.8.0: one shape per file kind in the graph; graph server hardened (Host/Origin checks, per-start token, CSP).
 - Spring Boot: tested on petclinic, buckpal, Apache Fineract; not yet on a company project.
 
@@ -42,14 +46,12 @@ Position it on those, not on "a map for Claude". Re-check the community catalog 
 
 ## Next steps (in this order)
 
-1. **Run `experiments/run.mjs` on MinuteView** (5 tasks, 3 runs) and put the numbers in docs/experiments.
-2. **Test on real company projects**: Angular (one large, one messy) and Spring Boot (one single-module, one
-   multi-module; Maven and Gradle). Note every problem; fix one per session.
-   Never commit company code to this repo.
-3. **Publishing prep:** LICENSE file, real author in `plugin/.claude-plugin/plugin.json`, GitHub Actions running
-   `tests/run.sh`, `claude plugin validate --strict`, final name.
-4. More rule sources if teams ask: eslint-plugin-boundaries, dependency-cruiser.
-5. **React and Vue** (about 1–2 weeks): `.vue` script-block imports, JSX, Vite aliases, kinds for hooks /
-   stores / composables, warn that moves change routes in Next.js / Nuxt (file-based routing).
-   Method moves stay Angular and Spring only for now.
-6. Later: relative `.scss` import rewriting, Kotlin.
+1. **Final name** before announcing (repo "project-play-map", plugin "project-map"): check the community plugin
+   catalog for collisions, then rename the repository and the marketplace name together.
+2. **Run `experiments/run.mjs` on MinuteView** (5 tasks, 3 runs), and try the new preset + `typeImports: 'warn'`
+   there: the interface-only imports were about half of its 43 issues. Put the numbers in docs/experiments.
+3. **Company Spring Boot project** (multi-module, Maven or Gradle). Never commit company code to this repo.
+4. React and Vue (about 1–2 weeks): `.vue` script blocks, JSX/TSX, Vite aliases, kinds for hooks / stores /
+   composables, file-based routing warnings. nx-examples has React parts to test with.
+5. Later: Kotlin, relative `.scss` import rewriting, classes used only as types (needs the TypeScript checker),
+   eslint-plugin-boundaries / dependency-cruiser as rule sources.

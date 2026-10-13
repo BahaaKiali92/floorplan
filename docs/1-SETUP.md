@@ -195,6 +195,11 @@ No dependencies are added to `package.json`.
 
 ## 7. The config file explained
 
+Tip: start from a **preset** (`presets: ['angular-feature-sliced']`, `angular-nx`, `spring-layered`,
+`spring-hexagonal`) and add your own rules on top; `/project-map setup` proposes one when the layout fits. Rule types,
+`typeImports`, `accepted`, `budget`, `errorFrom`, `why` and `docs`: [2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules).
+Owners in `folders` can become a CODEOWNERS file: `node scripts/project-map/codeowners.mjs --write`.
+
 `project-map.config.mjs` (all paths are relative to `root`; patterns: `*` = one folder, `**` = any depth;
 a folder pattern also matches everything inside it):
 
@@ -248,7 +253,7 @@ on main in the meantime. It also tells you when main has newer commits you haven
 
 ### CI templates
 
-In `skill/project-map/templates/ci/`:
+In `skill/project-map/templates/ci/` (in the kit; in the repository: `plugin/skills/project-map/templates/ci/`):
 
 | File | Put it at |
 |---|---|

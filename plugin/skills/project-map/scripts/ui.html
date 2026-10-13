@@ -121,6 +121,16 @@ aside li a:hover { text-decoration: underline; }
 .chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px var(--label); color: #fff; }
 .viol { border: 1px dashed var(--border-red); background: var(--border-red-soft); padding: 8px 10px; border-radius: 6px; margin: 8px 0; font-size: 14px; }
 .viol b { color: var(--border-red); font-weight: 600; }
+.viol.warn { border-color: var(--k-routes); background: transparent; }
+.viol.warn b { color: var(--ink); }
+.viol .sev { font: 600 11px var(--label); text-transform: uppercase; letter-spacing: .04em; margin-left: 6px; color: var(--ink-2); }
+.viol .why { color: var(--ink-2); margin-top: 4px; }
+.viol.accepted { border-style: dotted; border-color: var(--rule); background: transparent; }
+.issue-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0 4px; font-size: 13px; }
+.issue-filter select { flex: 1 1 140px; min-width: 0; font: inherit; padding: 4px 6px; border: 1px solid var(--rule); border-radius: 6px; background: var(--sheet); color: var(--ink); max-width: 100%; }
+.issue-filter label { display: inline-flex; gap: 4px; align-items: center; }
+.shape:focus { outline: none; }
+.shape:focus-visible { stroke: var(--water) !important; stroke-width: 3px !important; }
 .viol.fixed { border-color: var(--ok); background: transparent; }
 .viol.fixed b { color: var(--ok); }
 .viol .btn { display: table; margin-top: 8px; }
@@ -178,11 +188,12 @@ input.name { width: 100%; padding: 8px 10px; border: 1px solid var(--rule); bord
     <ul id="results" hidden></ul>
   </div>
   <div class="status" id="stats"></div>
+  <button class="btn" id="exportBtn" title="Save the current view as PNG or SVG (for pull requests and slides)">Save image</button>
   <button class="btn" id="undo" disabled title="Undo the last move">Undo</button>
 </header>
 <main>
   <div id="canvas">
-    <svg id="svg"></svg>
+    <svg id="svg" role="group" aria-label="Project map: folders contain folders and files. Tab through the shapes, Enter opens, Escape goes up, / searches."></svg>
     <div class="legend" id="legend"></div>
   </div>
   <aside id="panel"></aside>
@@ -325,7 +336,7 @@ function buildHierarchy(data) {
     // free space between the top of a folder and its highest child, in layout units
     d.topGap = d.children ? Math.min(...d.children.map((c) => c.y - c.r)) - (d.y - d.r) : d.r * 2;
     d.violations = d.data.type === 'method' ? [] : d.data.type === 'file' ? (violationsByFile.get(d.data.path) || []) :
-      d.descendants().filter((l) => l.data.type === 'file').flatMap((l) => violationsByFile.get(l.data.path) || []);
+      d.descendants().filter((l) => l.data.type !== 'method').flatMap((l) => violationsByFile.get(l.data.path) || []); // folder issues too (purpose, size, routed)
   });
   return h;
 }
@@ -352,6 +363,12 @@ function visibleDepth(d) { return isInFocus(d) && d.depth <= focus.depth + 3; }
 function isInFocus(d) { let n = d; while (n) { if (n === focus) return true; n = n.parent; } return false; }
 function interactive(d) { return d !== root && isInFocus(d) && d.depth > focus.depth && d.depth <= focus.depth + 2; }
 
+function ariaLabel(d) {
+  const n = d.violations && d.violations.length ? `, ${d.violations.length} rule issue${d.violations.length === 1 ? '' : 's'}` : '';
+  if (isMethod(d)) return `Method ${d.data.name}${d.data.visibility !== 'public' ? ' (private)' : ''}`;
+  if (d.data.type === 'folder') return `Folder ${d.data.name}${n}`;
+  return `${d.data.kind || 'file'} ${d.data.name}${n}`;
+}
 function render() {
   const nodes = root.descendants().filter((d) => d !== root);
   gCircles.selectAll('path.shape').data(nodes, (d) => d.data.path).join('path')
@@ -360,7 +377,16 @@ function render() {
     .attr('fill', (d) => isMethod(d) ? 'var(--sheet)'
       : isService(d) ? `color-mix(in srgb, ${kindColor(d.data.kind)} 18%, var(--sheet))`
       : d.data.type === 'file' ? kindColor(d.data.kind) : FOLDER_FILL[Math.min(d.depth, 4)])
+    .attr('role', 'button')
+    .attr('aria-label', ariaLabel)
     .on('click', onClick)
+    .on('keydown', (event, d) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault(); event.stopPropagation();
+      onClick({ defaultPrevented: false, stopPropagation() {} }, d);
+      // keep keyboard focus on the opened node, or its first visible child
+      requestAnimationFrame(() => { const n = gCircles.selectAll('path.shape').filter((x) => x === d).node(); if (n) n.focus(); });
+    })
     .call(drag);
   gLabels.selectAll('g.lbl').data(root.descendants().filter((d) => d !== root), (d) => d.data.path).join((enter) => {
     const g = enter.append('g').attr('class', 'lbl');
@@ -380,6 +406,7 @@ function applyVisibility() {
     .style('display', (d) => (visibleDepth(d) ? null : 'none'))
     .style('opacity', (d) => (d.depth > focus.depth + 2 ? 0.7 : 1))
     .style('pointer-events', (d) => (interactive(d) ? null : 'none'))
+    .attr('tabindex', (d) => (interactive(d) && visibleDepth(d) && d.depth <= focus.depth + 1 ? 0 : -1))
     .classed('selected', (d) => d === selected)
     .classed('picked', (d) => isMethod(d) && d.data.service === pickedService && picked.has(d.data.name));
 }
@@ -505,6 +532,7 @@ svg.on('click', () => {
   if (focus.parent) { selected = focus.parent === root ? null : focus.parent; zoomToNode(focus.parent); showPanel(selected); }
 });
 window.addEventListener('keydown', (e) => {
+  if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); document.getElementById('search').focus(); return; }
   if (e.key === 'Escape' && carry) { stopCarry(); return; }
   if (e.key === 'Escape' && !document.querySelector('.modal-bg') && focus.parent) {
     selected = focus.parent === root ? null : focus.parent; zoomToNode(focus.parent); showPanel(selected);
@@ -856,6 +884,92 @@ function branchSection() {
     ${b.newIssues.map((x) => issue(x, 'bad')).join('')}${b.fixedIssues.map((x) => issue(x, 'ok')).join('')}`;
 }
 
+// ---------- rule issues ----------
+let issueFilter = { rule: '', sev: 'all' };
+function issueCard(x, opts = {}) {
+  const cls = x.accepted ? 'accepted' : x.severity === 'warn' ? 'warn' : '';
+  const extra = [x.typeOnly ? 'types only' : '', x.note || '', x.errorFrom ? `warning until ${x.errorFrom}` : ''].filter(Boolean).join(' · ');
+  return `<div class="viol ${cls}"><b>${esc(x.rule)}</b><span class="sev">${x.accepted ? 'accepted' : x.severity === 'warn' ? 'warning' : 'error'}</span><br>
+    ${opts.noFile ? '' : `${fileLink(x.file)}<br>`}<span class="hint">${esc(x.detail)}${extra ? ` (${esc(extra)})` : ''}</span>
+    ${x.message && opts.message !== false ? `<div class="why">${esc(x.message)}</div>` : ''}
+    ${x.why ? `<div class="why">Why: ${esc(x.why)}</div>` : ''}${x.accepted ? `<div class="why">Accepted: ${esc(x.accepted)}</div>` : ''}
+    ${x.docs && /^https?:\/\//.test(x.docs) ? `<div class="why"><a href="${esc(x.docs)}" target="_blank" rel="noopener noreferrer">Rule docs</a></div>` : ''}
+    ${x.accepted ? '' : fixButton(x)}</div>`;
+}
+function issuesSection() {
+  const all = DATA.violations;
+  const rules = [...new Set(all.map((v) => v.rule))].sort();
+  const shown = all.filter((v) => (!issueFilter.rule || v.rule === issueFilter.rule) && (issueFilter.sev === 'all' || (issueFilter.sev === 'error') === (v.severity === 'error')));
+  const nErr = all.filter((v) => v.severity === 'error').length;
+  const acc = DATA.accepted || [];
+  return `<h3>Rule issues (${all.length}${nErr !== all.length ? `: ${nErr} errors, ${all.length - nErr} warnings` : ''})</h3>
+    ${all.length > 3 ? `<div class="issue-filter"><select id="issueRule" aria-label="Filter by rule"><option value="">All rules</option>${rules.map((r) => `<option value="${esc(r)}" ${r === issueFilter.rule ? 'selected' : ''}>${esc(r)} (${all.filter((v) => v.rule === r).length})</option>`).join('')}</select>
+      ${['all', 'error', 'warn'].map((k) => `<label><input type="radio" name="sev" value="${k}" ${issueFilter.sev === k ? 'checked' : ''}>${k === 'all' ? 'all' : k === 'error' ? 'errors' : 'warnings'}</label>`).join('')}</div>` : ''}
+    ${all.length ? shown.map((x) => issueCard(x)).join('') || '<p class="hint">No issue matches the filter.</p>' : '<p class="hint">None. The structure follows all rules.</p>'}
+    ${acc.length ? `<details><summary class="hint">${acc.length} accepted exception${acc.length === 1 ? '' : 's'}</summary>${acc.map((x) => issueCard(x)).join('')}</details>` : ''}`;
+}
+function bindIssueFilter(el) {
+  const sel = el.querySelector('#issueRule');
+  if (sel) sel.onchange = () => { issueFilter.rule = sel.value; showPanel(selected); };
+  el.querySelectorAll('input[name="sev"]').forEach((r) => (r.onchange = () => { issueFilter.sev = r.value; showPanel(selected); }));
+}
+
+// ---------- save the view as an image ----------
+function svgSnapshot() {
+  const src = document.getElementById('svg');
+  const box = src.getBoundingClientRect();
+  const clone = src.cloneNode(true);
+  const a = src.querySelectorAll('*'), b = clone.querySelectorAll('*');
+  const props = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity', 'opacity', 'font-family', 'font-size', 'font-weight', 'paint-order', 'stroke-linejoin', 'text-anchor', 'dominant-baseline'];
+  const hidden = [];
+  a.forEach((el, i) => {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') { hidden.push(b[i]); return; }
+    b[i].setAttribute('style', props.map((p) => `${p}:${cs.getPropertyValue(p)}`).join(';'));
+    b[i].removeAttribute('class'); b[i].removeAttribute('tabindex');
+  });
+  hidden.forEach((n) => n.remove());
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('width', box.width); clone.setAttribute('height', box.height);
+  clone.setAttribute('viewBox', `0 0 ${box.width} ${box.height}`);
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', '100%'); bg.setAttribute('height', '100%'); bg.setAttribute('fill', getComputedStyle(document.getElementById('canvas')).backgroundColor || '#fff');
+  clone.insertBefore(bg, clone.firstChild);
+  const title = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  title.setAttribute('x', 14); title.setAttribute('y', box.height - 14);
+  title.setAttribute('style', `font-family:sans-serif;font-size:13px;fill:${getComputedStyle(document.body).color}`);
+  title.textContent = `${DATA.root}${focus && focus !== root ? '/' + focus.data.path : ''} · project map`;
+  clone.appendChild(title);
+  return { text: new XMLSerializer().serializeToString(clone), width: box.width, height: box.height };
+}
+function download(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function saveImage(kind) {
+  const snap = svgSnapshot();
+  const base = `project-map-${(focus && focus !== root ? focus.data.path : 'root').replace(/[^\w-]+/g, '-')}`;
+  if (kind === 'svg') { download(new Blob([snap.text], { type: 'image/svg+xml' }), `${base}.svg`); return; }
+  const img = new Image();
+  const url = URL.createObjectURL(new Blob([snap.text], { type: 'image/svg+xml' }));
+  img.onload = () => {
+    const c = document.createElement('canvas'); const k = 2;
+    c.width = snap.width * k; c.height = snap.height * k;
+    const g = c.getContext('2d'); g.scale(k, k); g.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    c.toBlob((b) => download(b, `${base}.png`), 'image/png');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Could not render the PNG; saving SVG instead.'); download(new Blob([snap.text], { type: 'image/svg+xml' }), `${base}.svg`); };
+  img.src = url;
+}
+document.getElementById('exportBtn').onclick = () => {
+  openModal(`<header>Save the current view</header><p class="hint">What you see now (folder, zoom, selection), as an image for a pull request or a slide.</p>
+    <div class="actions"><button class="btn primary" id="savePng">PNG</button><button class="btn" id="saveSvg">SVG</button><button class="btn" data-close>Cancel</button></div>`);
+  document.getElementById('savePng').onclick = () => { closeModal(); saveImage('png'); };
+  document.getElementById('saveSvg').onclick = () => { closeModal(); saveImage('svg'); };
+};
+
 // ---------- side panel ----------
 function fileLink(p) { return `<a data-loc="${esc(p)}">${esc(p)}</a>`; }
 function showPanel(d) {
@@ -866,8 +980,7 @@ function showPanel(d) {
     const areas = Object.entries(DATA.areas || {}).map(([a, deps]) => `<li><b>${esc(a)}</b> → ${esc(deps.join(', ') || '(none)')}</li>`).join('');
     el.innerHTML = `<h2>${esc(DATA.root)}</h2><div class="path">${DATA.files.length} source files</div>${carryAction(root)}
       ${branchSection()}
-      <h3>Rule issues (${v.length})</h3>
-      ${v.length ? v.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span>${fixButton(x)}</div>`).join('') : '<p class="hint">None. The structure follows all rules.</p>'}
+      ${issuesSection()}
       <h3>Dependencies between areas</h3><ul>${areas}</ul>
       <h3>How to use</h3><p class="hint">Click a folder to drill down, the background to go up. Click a file to see what it imports (blue) and what imports it (orange). Drag a file or folder onto another folder to move it: you get a preview of every file and import that will change before anything happens.</p>`;
   } else if (d.data.type === 'folder') {
@@ -876,7 +989,7 @@ function showPanel(d) {
     el.innerHTML = `<h2>${esc(d.data.name)}/</h2><div class="path">${esc(DATA.root)}/${esc(d.data.path)}</div>
       ${info && info.purpose ? `<div class="purpose">${esc(info.purpose)}${info.owner ? `<br><span class="hint">Owner: ${esc(info.owner)}</span>` : ''}</div>` : '<p class="hint">No purpose described yet. Add it in project-map.config.mjs.</p>'}
       ${carry ? carryAction(d) : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
-      ${d.violations.length ? `<h3>Rule issues inside (${d.violations.length})</h3>` + d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}${fixButton(x)}</div>`).join('') : ''}
+      ${d.violations.length ? `<h3>Rule issues inside (${d.violations.length})</h3>` + d.violations.map((x) => issueCard(x, { message: false })).join('') : ''}
       <h3>Contains</h3><ul>${kids || '<li class="hint">Empty folder</li>'}</ul>`;
   } else if (isService(d)) {
     const f = d.data;
@@ -894,7 +1007,7 @@ function showPanel(d) {
       ${!carry && mine.size ? `<div class="actions"><button class="btn primary" id="methodsCarry">Move ${mine.size} selected to…</button></div>
         <p class="hint">Or drag a selected bubble onto another service, a folder, or a breadcrumb.</p>` : (!carry ? '<p class="hint">Select the methods to move, by clicking their bubbles or ticking them here.</p>' : '')}
       ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move file to another folder…</button></div>'}
-      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}${fixButton(x)}</div>`).join('')}
+      ${d.violations.map((x) => issueCard(x, { noFile: true })).join('')}
       <h3>Imported by (${(importedBy.get(f.path) || []).length})</h3><ul>${(importedBy.get(f.path) || []).map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
   } else {
     const f = d.data;
@@ -905,11 +1018,12 @@ function showPanel(d) {
       ${info && info.purpose ? `<div class="purpose"><span class="hint">Folder:</span> ${esc(info.purpose)}</div>` : ''}
       ${carry && carry.methods ? carryAction(d) : ''}
       ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
-      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}<br><span class="hint">${esc(x.message || '')}</span>${fixButton(x)}</div>`).join('')}
+      ${d.violations.map((x) => issueCard(x, { noFile: true })).join('')}
       <h3>Imports (${f.imports.length})</h3><ul>${f.imports.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing in the app</li>'}</ul>
       <h3>Imported by (${ins.length})</h3><ul>${ins.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
   }
   el.querySelectorAll('[data-loc]').forEach((a) => (a.onclick = () => locate(a.dataset.loc)));
+  bindIssueFilter(el);
   bindFixes(el);
   bindActions(d);
 }

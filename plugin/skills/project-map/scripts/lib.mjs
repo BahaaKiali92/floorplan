@@ -1,7 +1,7 @@
 // Shared helpers for the move engine and the map server. Zero dependencies.
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 export const toPosix = (p) => p.split(path.sep).join('/');
 
@@ -16,9 +16,34 @@ export function detectFramework(dir = process.cwd()) {
   return 'angular';
 }
 
+// presets: ['spring-layered'] (presets/ next to this file) or a path relative to the config. A preset gives defaults,
+// rules and folder purposes; the project's config wins (same rule name replaces the preset's rule; severity 'off' drops it).
+export async function applyPresets(user, configPath) {
+  const list = Array.isArray(user.presets) ? user.presets : user.presets ? [user.presets] : user.preset ? [user.preset] : [];
+  if (!list.length) return user;
+  const parts = [];
+  for (const name of list) {
+    const file = name.includes('/') || name.endsWith('.mjs') ? path.resolve(path.dirname(path.resolve(configPath)), name)
+      : fileURLToPath(new URL(`./presets/${name}.mjs`, import.meta.url));
+    if (!fs.existsSync(file)) throw new Error(`Preset not found: ${name} (${file})`);
+    parts.push((await import(pathToFileURL(file).href)).default);
+  }
+  const merged = {};
+  for (const c of [...parts, user]) {
+    const { rules, folders, ...rest } = c;
+    Object.assign(merged, rest);
+    merged.folders = { ...(merged.folders || {}), ...(folders || {}) };
+    const byName = new Map((merged.rules || []).map((r) => [r.name, r]));
+    for (const r of rules || []) byName.set(r.name, r);
+    merged.rules = [...byName.values()];
+  }
+  merged.rules = merged.rules.filter((r) => r.severity !== 'off');
+  return merged;
+}
+
 export async function loadConfig(configPath = 'project-map.config.mjs') {
   const abs = path.resolve(configPath);
-  const user = fs.existsSync(abs) ? (await import(pathToFileURL(abs).href + `?t=${Date.now()}`)).default : {};
+  const user = await applyPresets(fs.existsSync(abs) ? (await import(pathToFileURL(abs).href + `?t=${Date.now()}`)).default : {}, abs);
   const framework = user.framework || detectFramework();
   const config = {
     framework,

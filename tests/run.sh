@@ -6,7 +6,8 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 REPO=$(pwd)
-TOOLS=$REPO/skill/project-map/scripts
+SKILL=$REPO/plugin/skills/project-map
+TOOLS=$SKILL/scripts
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/project-map-test-XXXX")
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 PASS=0; FAIL=0
@@ -18,8 +19,9 @@ cleanup() { [ -z "${KEEP:-}" ] && rm -rf "$TMP" || echo "kept: $TMP"; }
 trap cleanup EXIT
 
 echo "== 0. Repository consistency"
-if diff -rq skill/project-map plugin/skills/project-map >/dev/null; then ok "plugin copy identical to skill/ (run scripts/sync-plugin.sh after changes)"
-else bad "plugin/skills/project-map differs from skill/project-map: run scripts/sync-plugin.sh"; fi
+[ ! -e skill ] && ok "one copy of the skill (plugin/skills/project-map)" || bad "a second skill/ folder exists again"
+v=$(cat "$TOOLS/VERSION"); grep -q "\"version\": \"$v\"" plugin/.claude-plugin/plugin.json && ok "plugin.json version = scripts/VERSION ($v)" || bad "plugin.json version differs from scripts/VERSION"
+grep -q "## $v " CHANGELOG.md && ok "CHANGELOG has $v" || bad "CHANGELOG has no section for $v"
 for f in "$TOOLS"/*.mjs; do node --check "$f" 2>/dev/null && ok "syntax $(basename "$f")" || bad "syntax $(basename "$f")"; done
 node -e "const h=require('fs').readFileSync('$TOOLS/ui.html','utf8');new Function(h.split('<script>')[1].split('</script>')[0])" 2>/dev/null && ok "ui.html script parses" || bad "ui.html script parses"
 
@@ -32,7 +34,7 @@ else npm install --silent --no-audit --no-fund >/dev/null 2>&1; fi
 [ -d node_modules/typescript ] && ok "typescript available" || bad "typescript available (npm install failed? set TS_PATH)"
 git init -q -b main && git add -A && git commit -qm sample
 mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
-cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
+cp "$SKILL/templates/project-map.config.mjs" .
 npm pkg set scripts.map="node scripts/project-map/generate-map.mjs" scripts.map:main="node scripts/project-map/generate-map.mjs --main" \
   scripts.map:check="node scripts/project-map/generate-map.mjs --check" scripts.map:hooks="node scripts/project-map/install-hooks.mjs"
 out=$(npm run -s map:main 2>&1); has "$out" "29 files · 7 routes · 7 areas · 2 violations" "main map: counts and 2 seeded violations"
@@ -110,7 +112,7 @@ SP=$TMP/spring
 cp -r "$REPO/sample-spring-app" "$SP" && cd "$SP"
 git init -q -b main && git add -A && git commit -qm sample
 mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
-cp "$REPO/skill/project-map/templates/project-map.config.spring.mjs" project-map.config.mjs
+cp "$SKILL/templates/project-map.config.spring.mjs" project-map.config.mjs
 G="node scripts/project-map/generate-map.mjs"
 out=$($G --main 2>&1); has "$out" "16 files · 7 endpoints · 6 areas · 6 violations" "main map: counts and 6 seeded issues"
 md=$(cat docs/PROJECT_MAP.md)
@@ -213,7 +215,7 @@ NG=$TMP/ng2
 cp -r "$REPO/sample-app" "$NG" && cd "$NG"
 printf 'node_modules\n' > .gitignore
 mkdir -p node_modules && ln -s "$APP/node_modules/typescript" node_modules/typescript
-mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$SKILL/templates/project-map.config.mjs" .
 git init -q -b main && git add -A && git commit -qm sample
 G="node scripts/project-map/generate-map.mjs"
 out=$($G --main 2>&1); has "$out" "29 files · 7 routes · 7 areas · 2 violations" "style-guide rules add nothing on a clean sample"
@@ -295,7 +297,7 @@ out=$(git switch -q -c feat/x && $G --main 2>&1); has "$out" "The main map descr
 echo "== 15. Per-edit hook, fixes, PR comment, cache"
 SP2=$TMP/spring2
 cp -r "$REPO/sample-spring-app" "$SP2" && cd "$SP2"
-mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.spring.mjs" project-map.config.mjs
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$SKILL/templates/project-map.config.spring.mjs" project-map.config.mjs
 git init -q -b main && git add -A && git commit -qm sample
 G="node scripts/project-map/generate-map.mjs"
 $G --main >/dev/null 2>&1 && git add -A && git commit -qm map
@@ -413,6 +415,214 @@ has "$out" "rebound-host 403" "unknown Host header is refused (DNS rebinding)"
 ui=$(cat "$TOOLS/ui.html")
 has "$ui" "SHAPE_ANGULAR" "UI has file shapes for Angular kinds"
 has "$ui" "SHAPE_SPRING" "UI has file shapes for Spring kinds"
+
+echo "== 18. Rule behaviour: type-only imports, accepted, budget, errorFrom, why"
+R=$TMP/rules
+cp -r "$REPO/sample-app" "$R" && cd "$R" || { bad "fixture $R"; exit 1; }
+rm -rf node_modules
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
+mkdir -p src/app/features/customers/data-access
+printf 'export interface CustomerRef { id: string }\nexport type CustomerId = string;\n' > src/app/features/customers/data-access/customer.types.ts
+printf "export * from './customer.types';\n" > src/app/features/customers/data-access/index.ts
+printf "import { CustomerRef } from '../../customers/data-access/customer.types';\nimport type { CustomerId } from '../../customers/data-access';\nexport const ref: CustomerRef | null = null;\nexport const id: CustomerId = '';\n" > src/app/features/orders/data-access/order-ref.ts
+printf "import { CustomerRef } from '../../customers/data-access';\nexport let r: CustomerRef;\n" > src/app/features/orders/data-access/order-ref2.ts
+cat > project-map.config.mjs <<'JS'
+export default {
+  framework: 'angular', root: 'src/app', units: ['features/*'], typeImports: process.env.TI || 'error',
+  accepted: [
+    { rule: 'features-are-isolated', file: 'features/orders/order-detail/*.ts', detail: 'customer-avatar', reason: 'moves to shared in JIRA-1' },
+    { rule: 'features-are-isolated', file: 'features/gone.ts', reason: 'stale' },
+  ],
+  budget: { 'services-placement': Number(process.env.BUDGET || 5) },
+  rules: [
+    { name: 'features-are-isolated', type: 'noImport', from: 'features/*', to: 'features/*', allowSame: true, message: 'no cross-feature imports',
+      why: 'Isolated features can be deleted on their own.', docs: 'https://example.com/rules#isolated' },
+    { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core', 'features/*/data-access'], message: 'services in data-access', errorFrom: '2999-01-01' },
+  ],
+};
+JS
+git init -q -b main && git add -A && git commit -qm base
+G="node scripts/project-map/generate-map.mjs"
+out=$($G --main 2>&1)
+has "$out" "order-ref.ts imports features/customers/data-access/customer.types.ts (types only)" "interface-only import detected"
+has "$out" "order-ref.ts imports features/customers/data-access/index.ts (types only)" "import type through a barrel detected"
+has "$out" "order-ref2.ts imports features/customers/data-access/index.ts (types only)" "interface re-exported by a barrel is type-only"
+has "$out" "why: Isolated features can be deleted on their own." "why is printed"
+has "$out" "docs: https://example.com/rules#isolated" "docs link is printed"
+has "$out" "accepted entry matches nothing anymore" "stale accepted entry is reported"
+has "$out" "(warning until 2999-01-01, then an error)" "errorFrom turns the error into a warning"
+md=$(cat docs/PROJECT_MAP.md)
+has "$md" "## Accepted exceptions (1)" "accepted issue listed separately"
+has "$md" "moves to shared in JIRA-1" "accepted reason shown"
+if grep -q "order-detail.component.ts\` imports features/customers/ui" <<<"$(sed -n '/## Violations/,/## Accepted/p' docs/PROJECT_MAP.md)"; then bad "accepted issue still counted"; else ok "accepted issue not counted"; fi
+out=$(TI=warn $G --main 2>&1)
+has "$out" "! features/orders/data-access/order-ref.ts imports features/customers/data-access/customer.types.ts (types only)" "typeImports warn: reported as warning"
+out=$(TI=ignore $G --main 2>&1)
+if grep -q "(types only)" <<<"$out"; then bad "typeImports ignore still reports"; else ok "typeImports ignore: not reported"; fi
+TI=ignore $G --main >/dev/null 2>&1; git add -A && git commit -qm "main map" && git checkout -qb feature
+mkdir -p src/app/features/orders/extra
+printf "import { Injectable } from '@angular/core';\n@Injectable({ providedIn: 'root' })\nexport class ExtraService {}\n" > src/app/features/orders/extra/extra.service.ts
+out=$(TI=ignore BUDGET=5 $G --check 2>&1); c=$?
+code $c 1 "budget ratchet: more issues than on main fails even under the configured budget"
+has "$out" "over budget: services-placement: 2 issues, allowed 1 (main has 1; the budget only goes down)" "over-budget message"
+mkdir -p src/app/features/customers/data-access && git mv -k src/app/features/customers/customer-list/customer-export.service.ts src/app/features/customers/data-access/ 2>/dev/null
+out=$(TI=ignore BUDGET=5 $G --check 2>&1); c=$?
+code $c 0 "budget: a new issue that replaces a fixed one passes"
+has "$out" "budget services-placement: 1 issues, budget 5. Lower the budget in project-map.config.mjs to 1." "budget can be lowered"
+git checkout -q -- . && git clean -qfd src && git reset -q --hard
+
+echo "== 19. Rule types: layers, cycles, packages, size, lazy, orphans, purpose, unused, folders, relative, routed"
+cd "$R" && git checkout -q main && git checkout -qb rules2
+mkdir -p src/app/shared/state src/app/features/reports src/app/core/misc
+printf "import { Store } from '@ngrx/store';\nimport { x } from 'rxjs/internal/util';\nimport { AuthService } from '../../core/auth/auth.service';\nexport const s = [Store, x, AuthService];\n" > src/app/shared/state/bad.ts
+printf "import { b } from './b';\nexport const a = () => b;\n" > src/app/core/misc/a.ts
+printf "import { a } from './a';\nexport const b = () => a;\n" > src/app/core/misc/b.ts
+printf "import { OrdersService } from '../orders/data-access/orders.service';\nexport const r = OrdersService;\n" > src/app/features/reports/reports-page.ts
+printf "import { r } from '../reports/reports-page';\nexport const back = r;\n" > src/app/features/orders/back.ts
+printf "describe('gone', () => {});\n" > src/app/shared/ui/gone.component.spec.ts
+for i in $(seq 1 30); do echo "// line $i" >> src/app/core/http/api-base.service.ts; done
+cat > project-map.config.mjs <<'JS'
+export default {
+  framework: 'angular', root: 'src/app', units: ['features/*'],
+  folders: { 'features/orders': { purpose: 'Orders', owner: '@acme/orders' }, 'features/customers': { purpose: 'Customers', owner: 'nobody' } },
+  rules: [
+    { name: 'layers', type: 'layers', layers: ['features', ['layout', 'core'], 'shared'] },
+    { name: 'no-area-cycles', type: 'noCycles' },
+    { name: 'no-file-cycles', type: 'noCycles', level: 'file' },
+    { name: 'no-store-in-shared', type: 'noPackage', from: 'shared', packages: ['@ngrx/store', 'rxjs/internal/**'] },
+    { name: 'big-files', type: 'maxSize', maxLines: 30, files: 'core' },
+    { name: 'hubs', type: 'maxFanIn', max: 2 },
+    { name: 'lazy', type: 'lazyBoundary' },
+    { name: 'orphans', type: 'orphanTests' },
+    { name: 'purpose', type: 'purpose', folders: 'features/*' },
+    { name: 'owners', type: 'owners', folders: 'features/*' },
+    { name: 'unused', type: 'unused' },
+    { name: 'lonely', type: 'singleFileFolders' },
+    { name: 'relative', type: 'relativeImports', maxUp: 1 },
+    { name: 'routed', type: 'routed', folders: 'features/*' },
+  ],
+};
+JS
+out=$($G --main 2>&1)
+has "$out" "shared/state/bad.ts imports core/auth/auth.service.ts" "layers: shared must not use core"
+has "$out" "features/orders/back.ts imports features/reports/reports-page.ts (cycle: features/orders → features/reports → features/orders)" "noCycles: weakest link of an area cycle"
+has "$out" "core/misc/a.ts imports core/misc/b.ts (cycle: core/misc/a.ts → core/misc/b.ts → core/misc/a.ts)" "noCycles level file"
+has "$out" "shared/state/bad.ts uses @ngrx/store" "noPackage: package"
+has "$out" "shared/state/bad.ts uses rxjs/internal/util" "noPackage: deep import pattern"
+has "$out" "core/http/api-base.service.ts is longer than 30 lines" "maxSize lines"
+has "$out" "is imported by more than 2 files" "maxFanIn"
+has "$out" "features/orders/order-detail/order-detail.component.ts imports features/customers/ui/customer-avatar/customer-avatar.component.ts" "lazyBoundary: eager import of a lazy feature"
+has "$out" "shared/ui/gone.component.spec.ts tests gone.component.ts, which no longer exists" "orphanTests (Angular)"
+has "$out" "features/settings has no purpose in project-map.config.mjs" "purpose rule"
+has "$out" "features/settings has no owner" "owners rule (folder without owner)"
+has "$out" "shared/directives/autofocus.directive.ts is not imported anywhere" "unused files"
+has "$out" "features/reports/reports-page.ts is alone in features/reports/" "single-file folders"
+has "$out" "(relative path ../orders/data-access/orders.service)" "relativeImports across areas"
+has "$out" "features/reports is not reachable from any route" "routed rule"
+j=$(cat docs/project-map.json)
+grep -q '"_typeOnly"\|"_ext"' <<<"$j" && bad "in-memory fields leaked into the JSON" || ok "in-memory fields stay out of the JSON"
+has "$j" '"lines":' "JSON has line counts"
+
+echo "== 20. Presets, extraction planner, CODEOWNERS, change coupling, related tests"
+cd "$R" && git checkout -q -- . && git clean -qfd src && git checkout -q main
+printf "export default { presets: ['angular-feature-sliced'], folders: { 'features/orders': { owner: '@acme/orders' }, core: { owner: 'platform-team' } } };\n" > project-map.config.mjs
+out=$($G --main 2>&1)
+has "$out" "features-are-isolated" "preset rules are active"
+has "$(cat docs/PROJECT_MAP.md)" "**layers** (error)" "preset rule listed in the map"
+printf "export default { presets: ['angular-feature-sliced'], rules: [{ name: 'unused-files', type: 'unused', severity: 'off' }, { name: 'layers', type: 'layers', layers: ['features', 'shared'], severity: 'warn' }] };\n" > p2.mjs
+out=$($G --main --config p2.mjs 2>&1)
+if grep -q "is not imported anywhere" <<<"$out"; then bad "severity off did not remove the preset rule"; else ok "severity 'off' removes a preset rule"; fi
+has "$(cat docs/PROJECT_MAP.md)" "**layers** (warn)" "own rule replaces the preset rule with the same name"
+out=$(node scripts/project-map/move-cli.mjs features/orders/orders.routes.ts features/orders 2>&1 --config p2.mjs); rm -f p2.mjs
+out=$($G --plan-extract features-are-isolated 2>&1)
+has "$out" "Move 1 file(s) → fixes 2 issue(s), adds 0" "extraction planner: fixes and adds"
+has "$out" "move-cli.mjs features/customers/ui/customer-avatar shared/ui --create" "extraction planner: folder command"
+has "$out" "All together" "extraction planner: total"
+git status --porcelain src | grep -q . && bad "planner changed files" || ok "planner changes nothing"
+out=$(node scripts/project-map/codeowners.mjs 2>&1)
+has "$out" "/src/app/features/orders/ @acme/orders" "CODEOWNERS preview"
+has "$out" "is not a GitHub/GitLab @user" "CODEOWNERS warns about invalid owners"
+node scripts/project-map/codeowners.mjs --write >/dev/null 2>&1; node scripts/project-map/codeowners.mjs --write >/dev/null 2>&1
+n=$(grep -c ">>> project-map" .github/CODEOWNERS); [ "$n" = 1 ] && ok "CODEOWNERS --write is idempotent" || bad "CODEOWNERS section written $n times"
+git add -A && git commit -qm presets
+for i in 1 2 3 4; do echo "// $i" >> src/app/features/orders/order-list/order-list.component.ts; echo "// $i" >> src/app/shared/pipes/eur.pipe.ts; git commit -qam "co $i"; done
+out=$(node scripts/project-map/cochange.mjs --min 3 2>&1)
+has "$out" "| features/orders/order-list/order-list.component.ts | shared/pipes/eur.pipe.ts | 4 |" "change coupling between areas"
+[ -f .project-map/COCHANGE.md ] && ok "COCHANGE.md written" || bad "COCHANGE.md missing"
+git checkout -qb tests-branch
+echo "// changed" >> src/app/features/orders/data-access/orders.service.ts
+npm pkg set devDependencies.jest="^29" >/dev/null 2>&1
+$G >/dev/null 2>&1; b=$(cat .project-map/BRANCH_CHANGES.md)
+has "$b" "## Files that use the changed files (check them)" "branch report lists dependents"
+has "$b" "features/orders/order-list/order-list.component.ts (uses features/orders/data-access/orders.service.ts)" "dependent with the file it uses"
+has "$b" "npx jest --findRelatedTests src/app/features/orders/data-access/orders.service.ts" "related tests command (jest)"
+out=$($G --session 2>&1); has "$out" "Related tests: npx jest" "session summary has the test command"
+
+WS=$TMP/workspaces
+mkdir -p "$WS/libs/a/src" "$WS/libs/b/src" && cd "$WS"
+printf '{ "name": "ws", "private": true, "workspaces": ["libs/*"] }\n' > package.json
+printf '{ "name": "@x/a", "exports": { ".": { "types": "./src/index.ts" }, "./sub": { "import": "./src/sub.ts" } } }\n' > libs/a/package.json
+printf '{ "name": "@x/b" }\n' > libs/b/package.json
+echo "export const a = 1;" > libs/a/src/index.ts; echo "export const s = 1;" > libs/a/src/sub.ts
+printf "import { a } from '@x/a';\nimport { s } from '@x/a/sub';\nexport const b = a + s;\n" > libs/b/src/index.ts
+printf "export default { framework: 'angular', root: '.', units: ['libs/*'], rules: [{ name: 'no-b-to-a', type: 'noImport', from: 'libs/b', to: 'libs/a' }] };\n" > project-map.config.mjs
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
+out=$(node scripts/project-map/generate-map.mjs --main 2>&1)
+has "$out" "libs/b/src/index.ts imports libs/a/src/index.ts" "workspace package resolved through exports"
+has "$out" "libs/b/src/index.ts imports libs/a/src/sub.ts" "workspace subpath export resolved"
+
+echo "== 21. Spring rules: field injection, proxy annotations, orphan tests, presets, related tests"
+SR=$TMP/spring-rules
+cp -r "$REPO/sample-spring-app" "$SR" && cd "$SR" || { bad "fixture $SR"; exit 1; }
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
+B=src/main/java/com/acme/shop
+cat > $B/orders/AuditService.java <<'JAVA'
+package com.acme.shop.orders;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.RequestParam;
+
+@Service
+public class AuditService {
+    @Autowired
+    private OrderRepository orders;
+
+    @Transactional
+    private void record(String what) { }
+
+    @Transactional(readOnly = true)
+    public final int count(@RequestParam("x") String x) { return 0; }
+
+    @Transactional
+    public void ok() { record("x"); }
+}
+JAVA
+printf 'package com.acme.shop.orders;\n\nclass MoneyTest { }\n' > src/test/java/com/acme/shop/orders/MoneyTest.java
+printf 'package com.acme.shop;\n\nclass CheckoutScenarioTest { }\n' > src/test/java/com/acme/shop/CheckoutScenarioTest.java
+printf "export default { root: '$B', presets: ['spring-layered'] };\n" > project-map.config.mjs
+git init -q -b main && git add -A && git commit -qm base
+G="node scripts/project-map/generate-map.mjs"
+out=$($G --main 2>&1)
+has "$out" "orders/AuditService.java injects orders through a field" "field injection"
+has "$out" "@Transactional on private method record()" "proxy annotation on a private method"
+has "$out" "@Transactional on final method count()" "proxy annotation on a final method"
+if grep -q "method ok()" <<<"$out"; then bad "public @Transactional flagged"; else ok "public @Transactional method is fine"; fi
+has "$out" "tests Money, which is in package com.acme.shop.shared now" "test left behind after its class moved"
+if grep -q "CheckoutScenario" <<<"$out"; then bad "scenario test reported as orphan"; else ok "tests not named after a class are not reported"; fi
+has "$out" "orders/AuditService.java uses org.springframework.web.bind.annotation.RequestParam" "noPackage on Java packages"
+has "$out" "shared/OrderPricingService.java imports orders/Order.java (cycle: shared → orders → shared)" "package cycle: weakest link"
+printf "export default { root: '$B', presets: ['spring-hexagonal'] };\n" > hex.mjs
+mkdir -p $B/billing/domain && printf 'package com.acme.shop.billing.domain;\n\nimport org.springframework.stereotype.Component;\n\n@Component\npublic class Invoice { }\n' > $B/billing/domain/Invoice.java
+out=$($G --main --config hex.mjs 2>&1)
+has "$out" "billing/domain/Invoice.java uses org.springframework.stereotype.Component" "hexagonal preset: framework-free domain"
+rm -rf $B/billing hex.mjs
+git add -A && git commit -qm maps && git checkout -qb feature
+echo "// changed" >> $B/orders/OrderService.java
+$G >/dev/null 2>&1; b=$(cat .project-map/BRANCH_CHANGES.md)
+has "$b" "mvn test -Dtest=OrderControllerTest,OrderServiceTest" "related tests command (Maven)"
+has "$b" "orders/OrderController.java (uses orders/OrderService.java)" "Spring dependents"
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"

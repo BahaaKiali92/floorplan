@@ -1,0 +1,21 @@
+name: Bug
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: The command or action, what you expected, what happened (error output)
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal example
+      description: A few files (ideally in sample-app/ or sample-spring-app/) that show the problem. No company code.
+  - type: input
+    id: env
+    attributes:
+      label: Versions
+      description: scripts/project-map/VERSION, node --version, OS
+    validations: { required: true }
