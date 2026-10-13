@@ -12,7 +12,9 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}/floorplan-test-XXXX")
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS + 1)); echo "  ✓ $1"; }
-bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed 's/^/      /' | head -20; }
+bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed 's/^/      /' | head -20
+         # GitHub Actions: show each failure as an annotation on the run and the pull request
+         if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$1" "$(printf '%s' "${2:-}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }
 # issue lines show "path:line  detail"; most checks look at the detail, so they also match with the line number removed
 norm() { sed -E 's#(\.(ts|java))(:[0-9]+)(`?)( +)#\1\4 #g' <<<"$1"; }
 has()  { if grep -qF -- "$2" <<<"$1" || grep -qF -- "$2" <<<"$(norm "$1")"; then ok "$3"; else bad "$3" "$1"; fi; }
