@@ -19,7 +19,7 @@ They live in the repository so CI and teammates without the skill can run them.
 
 ```bash
 mkdir -p scripts/project-map
-cp "<SKILL_DIR>/scripts/"* scripts/project-map/
+cp -r "<SKILL_DIR>/scripts/." scripts/project-map/
 ```
 
 If `scripts/project-map/` already existed, follow `<SKILL_DIR>/reference/update.md` instead (keeps the config).

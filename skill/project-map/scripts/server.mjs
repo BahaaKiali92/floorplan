@@ -86,17 +86,24 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(302, { location: 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js' });
       return res.end();
     }
+    const font = /^\/vendor\/fonts\/([\w-]+\.woff2)$/.exec(url.pathname);
+    if (req.method === 'GET' && font) {
+      const f = path.join(here, 'fonts', font[1]);
+      if (!fs.existsSync(f)) return send(res, 404, { errors: ['Not found'] });
+      res.writeHead(200, { 'content-type': 'font/woff2', 'cache-control': 'max-age=86400' });
+      return res.end(fs.readFileSync(f));
+    }
     if (req.method === 'GET' && url.pathname === '/api/map') return send(res, 200, regenerate());
 
     if (req.method === 'POST' && url.pathname === '/api/plan') {
-      const { source, target } = await readBody(req);
-      const r = planMove(ctx, source, target);
+      const { source, target, create } = await readBody(req);
+      const r = planMove(ctx, source, target, { create: !!create });
       if (r.errors) return send(res, 400, { errors: r.errors });
       return send(res, 200, summarize(ctx, r.plan));
     }
     if (req.method === 'POST' && url.pathname === '/api/move') {
-      const { source, target } = await readBody(req);
-      const r = planMove(ctx, source, target); // re-planned from disk, never from a stale preview
+      const { source, target, create } = await readBody(req);
+      const r = planMove(ctx, source, target, { create: !!create }); // re-planned from disk, never from a stale preview
       if (r.errors) return send(res, 400, { errors: r.errors });
       const result = applyPlan(ctx, r.plan);
       history.push({ label: `${source} → ${target || config.root}`, pairs: r.plan.pairs.map(({ from, to }) => ({ from, to })) });

@@ -5,137 +5,178 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Project Map</title>
 <style>
+/* Project map: a topographic survey sheet. Folders are contour rings with elevation tints, files are legend symbols,
+   rule issues are disputed borders. Barlow (SIL OFL, fonts/OFL.txt) is bundled: no request leaves this machine. */
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url(/vendor/fonts/Barlow-Regular.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url(/vendor/fonts/Barlow-Medium.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600 700; font-display: swap; src: url(/vendor/fonts/Barlow-SemiBold.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; font-display: swap; src: url(/vendor/fonts/BarlowSemiCondensed-Medium.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600 700; font-display: swap; src: url(/vendor/fonts/BarlowSemiCondensed-SemiBold.woff2) format("woff2"); }
 :root {
-  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef1f5; --text: #1c2230; --muted: #667085;
-  --line: #d8dde6; --accent: #3a6ee8; --accent-soft: rgba(58,110,232,.12); --danger: #d64545;
-  --danger-soft: rgba(214,69,69,.12); --ok: #2b8a57; --warn: #b7791f;
-  --f1: #e8edf6; --f2: #dde4f0; --f3: #d1dae9; --f4: #c6d0e2;
-  --k-component: #4f7cff; --k-service: #22a06b; --k-routes: #e0812a; --k-guard: #8b5cf6;
-  --k-pipe: #0ea5b7; --k-store: #d9488f; --k-model: #8a94a6; --k-other: #a3abb9;
-  --shadow: 0 8px 30px rgba(20,30,50,.12);
+  --paper: #f2f4ee; --sheet: #fbfcf8; --sheet-2: #e9ede4; --ink: #1e2923; --ink-2: #5a6a60; --rule: #d3dacd;
+  --contour: #9a7b5b; --water: #2d6e9e; --water-soft: rgba(45,110,158,.12); --border-red: #c2412d; --border-red-soft: rgba(194,65,45,.10);
+  --ok: #3b7d4f; --warn: #b07a1c;
+  --e1: #e6ebe0; --e2: #dae2d2; --e3: #cfd9c5; --e4: #c4d0b9;
+  --k-component: #3f74b0; --k-service: #3a8656; --k-routes: #c08325; --k-guard: #7457a3;
+  --k-pipe: #2a8f8c; --k-store: #ad4e74; --k-model: #87918a; --k-other: #a3aaa2;
+  --grid: rgba(30,41,35,.045);
+  --shadow: 0 1px 0 rgba(30,41,35,.06), 0 10px 28px rgba(30,41,35,.12);
+  --ui: "Barlow", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --label: "Barlow Semi Condensed", "Barlow", "Segoe UI", system-ui, sans-serif;
+  --code: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111419; --surface: #191d25; --surface-2: #212732; --text: #e6e9ef; --muted: #98a2b3;
-    --line: #2e3542; --accent: #6d97ff; --accent-soft: rgba(109,151,255,.16); --danger: #f07070;
-    --danger-soft: rgba(240,112,112,.16); --ok: #4cc38a; --warn: #e0a84a;
-    --f1: #1c222c; --f2: #232a36; --f3: #2a3240; --f4: #323b4b; --k-model: #9aa4b6; --k-other: #7d8697;
-    --shadow: 0 8px 30px rgba(0,0,0,.45);
+    --paper: #111a15; --sheet: #17221c; --sheet-2: #1f2c25; --ink: #e2e9e3; --ink-2: #9aaaa0; --rule: #2c3a32;
+    --contour: #b99b79; --water: #73aede; --water-soft: rgba(115,174,222,.16); --border-red: #ea6f5a; --border-red-soft: rgba(234,111,90,.14);
+    --ok: #6cc08a; --warn: #e2ac4f;
+    --e1: #18241e; --e2: #1d2b24; --e3: #22332a; --e4: #283a30;
+    --k-component: #6c9fd8; --k-service: #5fb07e; --k-routes: #dba34a; --k-guard: #9d84cf;
+    --k-pipe: #4fb7b3; --k-store: #d2759a; --k-model: #9aa59c; --k-other: #7b867e;
+    --grid: rgba(226,233,227,.04);
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 12px 30px rgba(0,0,0,.45);
   }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Inter, sans-serif; display: flex; flex-direction: column; }
-header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-header h1 { font-size: 16px; margin: 0; font-weight: 650; white-space: nowrap; }
-.crumbs { display: flex; gap: 4px; align-items: center; flex: 1; min-width: 200px; overflow: hidden; }
-.crumbs button { background: none; border: 0; color: var(--accent); font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
-.crumbs button:hover { background: var(--accent-soft); }
-.crumbs button[disabled] { color: var(--text); font-weight: 600; cursor: default; background: none; }
-.crumbs button.drop { outline: 2px dashed var(--accent); background: var(--accent-soft); }
-.crumbs span { color: var(--muted); }
+body { background: var(--paper); color: var(--ink); font: 15px/1.45 var(--ui); display: flex; flex-direction: column; }
+code, .mono { font-family: var(--code); font-size: 12.5px; }
+:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+
+/* title block */
+header.top { display: flex; align-items: center; gap: 18px; padding: 10px 18px; background: var(--sheet); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.title { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.title h1 { font: 600 18px/1.1 var(--ui); margin: 0; letter-spacing: .01em; white-space: nowrap; }
+.title small { color: var(--ink-2); font: 500 13px var(--label); white-space: nowrap; }
+.crumbs { display: flex; gap: 2px; align-items: center; flex: 1; min-width: 200px; overflow: hidden; font: 500 15px var(--label); }
+.crumbs button { background: none; border: 0; color: var(--water); font: inherit; cursor: pointer; padding: 3px 6px; border-radius: 4px; white-space: nowrap; }
+.crumbs button:hover { background: var(--water-soft); }
+.crumbs button[disabled] { color: var(--ink); font-weight: 600; cursor: default; background: none; }
+.crumbs button.drop { outline: 2px dashed var(--water); background: var(--water-soft); }
+.crumbs span { color: var(--contour); }
 .search { position: relative; }
-.search input { width: 240px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: inherit; }
-.search ul { position: absolute; top: 38px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); z-index: 20; max-height: 320px; overflow: auto; }
-.search li { padding: 6px 8px; border-radius: 6px; cursor: pointer; }
-.search li:hover, .search li.active { background: var(--accent-soft); }
-.search li small { display: block; color: var(--muted); }
-.btn { border: 1px solid var(--line); background: var(--surface); color: var(--text); padding: 7px 12px; border-radius: 8px; font: inherit; cursor: pointer; white-space: nowrap; }
-.btn:hover:not([disabled]) { border-color: var(--accent); }
+.search input { width: 250px; padding: 7px 11px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; }
+.search input::placeholder { color: var(--ink-2); }
+.search ul { position: absolute; top: 40px; left: 0; right: 0; margin: 0; padding: 4px; list-style: none; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; box-shadow: var(--shadow); z-index: 20; max-height: 340px; overflow: auto; }
+.search li { padding: 6px 8px; border-radius: 5px; cursor: pointer; }
+.search li:hover, .search li.active { background: var(--water-soft); }
+.search li small { display: block; color: var(--ink-2); font-family: var(--code); font-size: 11.5px; }
+.status { display: flex; gap: 6px; align-items: center; }
+.pill { display: inline-block; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--rule); font: 500 13.5px var(--label); white-space: nowrap; color: var(--ink-2); }
+.pill b { color: var(--ink); font-weight: 600; }
+.pill.bad { border-color: var(--border-red); color: var(--border-red); background: var(--border-red-soft); }
+.pill.bad b { color: inherit; }
+.pill.good { border-color: color-mix(in srgb, var(--ok) 50%, transparent); color: var(--ok); }
+.btn { border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); padding: 7px 13px; border-radius: 6px; font: 500 14px var(--ui); cursor: pointer; white-space: nowrap; }
+.btn:hover:not([disabled]) { border-color: var(--water); color: var(--water); }
 .btn[disabled] { opacity: .45; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.stat { color: var(--muted); white-space: nowrap; }
-.stat b.bad { color: var(--danger); }
-.stat b.good { color: var(--ok); }
+.btn.primary { background: var(--water); border-color: var(--water); color: #fff; }
+.btn.primary:hover:not([disabled]) { color: #fff; filter: brightness(1.08); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+
+/* the map */
 main { flex: 1; display: flex; min-height: 0; }
-#canvas { flex: 1; position: relative; min-width: 0; }
+#canvas { flex: 1; position: relative; min-width: 0;
+  background-color: var(--paper);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 64px 64px; }
 #canvas svg { width: 100%; height: 100%; display: block; }
-aside { width: 360px; background: var(--surface); border-left: 1px solid var(--line); overflow: auto; padding: 16px 18px; }
-aside h2 { font-size: 17px; margin: 0 0 2px; word-break: break-all; }
-aside h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 0 6px; }
-aside .path { color: var(--muted); font-size: 12px; word-break: break-all; }
-aside .purpose { margin-top: 8px; padding: 8px 10px; background: var(--surface-2); border-radius: 8px; }
-aside ul { list-style: none; margin: 0; padding: 0; }
-aside li { padding: 4px 0; border-bottom: 1px solid var(--line); word-break: break-all; }
-aside li a { color: var(--accent); cursor: pointer; text-decoration: none; }
-aside li a:hover { text-decoration: underline; }
-.chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #fff; }
-.viol { background: var(--danger-soft); border-left: 3px solid var(--danger); padding: 6px 8px; border-radius: 6px; margin: 6px 0; }
-.viol b { color: var(--danger); }
-.hint { color: var(--muted); font-size: 13px; }
-.legend { position: absolute; left: 12px; bottom: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: calc(100% - 24px); box-shadow: var(--shadow); }
-.legend span { display: inline-flex; align-items: center; gap: 5px; }
-.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-.legend .tip { color: var(--muted); }
-svg text { pointer-events: none; font-family: inherit; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
-svg text.on-color { stroke: rgba(0,0,0,.28); stroke-width: 2px; }
-circle.folder { stroke: var(--line); stroke-width: 1; cursor: pointer; }
-circle.file { stroke: rgba(0,0,0,.15); stroke-width: 1; cursor: grab; }
-circle.bad { stroke: var(--danger) !important; stroke-width: 3 !important; }
-circle.selected { stroke: var(--text) !important; stroke-width: 3 !important; }
-circle.drop { stroke: var(--accent) !important; stroke-width: 3 !important; stroke-dasharray: 6 4; fill: var(--accent-soft) !important; }
+svg text { pointer-events: none; font-family: var(--label); paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
+svg text.on-color { stroke: rgba(0,0,0,.25); stroke-width: 2px; }
+circle.folder { stroke: var(--contour); stroke-width: 1; stroke-opacity: .7; cursor: pointer; }
+circle.file { stroke: rgba(0,0,0,.18); stroke-width: 1; cursor: grab; }
+circle.bad { stroke: var(--border-red) !important; stroke-width: 2.5 !important; stroke-dasharray: 5 3; stroke-opacity: 1 !important; }
+circle.selected { stroke: var(--ink) !important; stroke-width: 2.5 !important; stroke-dasharray: none; stroke-opacity: 1 !important; }
+circle.drop { stroke: var(--water) !important; stroke-width: 3 !important; stroke-dasharray: 7 4; fill: var(--water-soft) !important; }
+circle.drop-same { stroke: var(--ink-2) !important; stroke-width: 2 !important; stroke-dasharray: 3 4; }
 circle.svc { cursor: pointer; }
 circle.method { stroke: var(--k-service); stroke-width: 1.5; cursor: grab; }
 circle.method.priv { stroke-dasharray: 4 3; }
-circle.picked { fill: var(--accent-soft) !important; stroke: var(--accent) !important; stroke-width: 3 !important; }
-.mlist label { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); cursor: pointer; }
-.mlist code { font: 12.5px ui-monospace, Menlo, Consolas, monospace; }
-.mlist .vis { color: var(--muted); font-size: 11px; margin-left: auto; white-space: nowrap; }
-.tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; text-transform: uppercase; letter-spacing: .03em; }
-.tag.blocker { background: var(--danger); color: #fff; }
-.tag.decide { background: var(--warn); color: #fff; }
-.tag.info { background: var(--surface-2); color: var(--muted); }
-.decision { border-left: 3px solid var(--warn); background: var(--surface-2); padding: 8px 10px; border-radius: 6px; margin: 6px 0; }
-.decision.blocker { border-color: var(--danger); background: var(--danger-soft); }
-.decision ul { margin: 6px 0 0 18px; padding: 0; color: var(--muted); font-size: 13px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.chips span { background: var(--surface-2); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; }
-.chips span.bad { background: var(--danger-soft); color: var(--danger); font-weight: 600; }
-.dirline { font-size: 14px; padding: 4px 0; }
-pre.task { white-space: pre-wrap; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; background: var(--surface-2); padding: 10px; border-radius: 8px; max-height: 260px; overflow: auto; }
-.preview-note { font-size: 12px; color: var(--muted); margin-right: auto; align-self: center; }
-input.name { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font: 14px ui-monospace, Menlo, Consolas, monospace; margin-top: 6px; }
-circle.drop-same { stroke: var(--muted) !important; stroke-width: 2 !important; stroke-dasharray: 3 4; }
-.edge { fill: none; stroke-width: 2; opacity: .8; pointer-events: none; }
-.edge.out { stroke: var(--accent); }
+circle.picked { fill: var(--water-soft) !important; stroke: var(--water) !important; stroke-width: 3 !important; }
+.edge { fill: none; stroke-width: 2; opacity: .85; pointer-events: none; }
+.edge.out { stroke: var(--water); }
 .edge.in { stroke: var(--warn); }
-.ghost circle { opacity: .85; stroke: var(--text); stroke-width: 2; }
+.ghost circle { opacity: .85; stroke: var(--ink); stroke-width: 2; }
 .ghost text { font-weight: 600; }
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 10px 16px; border-radius: 10px; box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; z-index: 50; max-width: calc(100% - 32px); }
-.toast button { background: none; border: 0; color: var(--surface); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
-.modal-bg { position: fixed; inset: 0; background: rgba(10,14,20,.45); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
-.modal { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); width: min(720px, 100%); max-height: 85vh; display: flex; flex-direction: column; }
-.modal header { border-radius: 14px 14px 0 0; }
-.modal .body { padding: 16px 18px; overflow: auto; }
-.modal .body h4 { margin: 14px 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.legend { position: absolute; left: 14px; bottom: 14px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 9px 12px; font: 500 13px var(--label); box-shadow: var(--shadow); max-width: calc(100% - 28px); }
+.legend .items { display: flex; flex-wrap: wrap; gap: 5px 14px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
+.legend .tip { color: var(--ink-2); margin-top: 6px; font-weight: 400; }
+.legend button.toggle { background: none; border: 0; color: var(--ink-2); font: inherit; cursor: pointer; padding: 0; float: right; margin-left: 12px; }
+.legend.closed .items, .legend.closed .tip { display: none; }
+
+/* the legend sheet (side panel) */
+aside { width: 380px; background: var(--sheet); border-left: 1px solid var(--rule); overflow: auto; padding: 18px 20px 28px; }
+aside h2 { font: 600 21px/1.2 var(--ui); margin: 0 0 3px; word-break: break-word; }
+aside h3 { font: 600 15px var(--ui); color: var(--ink); margin: 22px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--rule); }
+aside .path { color: var(--ink-2); font-family: var(--code); font-size: 12px; word-break: break-all; }
+aside .purpose { margin-top: 10px; padding: 9px 12px; background: var(--sheet-2); border-left: 3px solid var(--contour); border-radius: 0 6px 6px 0; }
+aside ul { list-style: none; margin: 0; padding: 0; }
+aside li { padding: 5px 0; border-bottom: 1px solid var(--rule); word-break: break-all; font-size: 14px; }
+aside li:last-child { border-bottom: 0; }
+aside li a { color: var(--water); cursor: pointer; text-decoration: none; }
+aside li a:hover { text-decoration: underline; }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font: 600 13px var(--label); color: #fff; }
+.viol { border: 1px dashed var(--border-red); background: var(--border-red-soft); padding: 8px 10px; border-radius: 6px; margin: 8px 0; font-size: 14px; }
+.viol b { color: var(--border-red); font-weight: 600; }
+.viol.fixed { border-color: var(--ok); background: transparent; }
+.viol.fixed b { color: var(--ok); }
+.viol .btn { display: table; margin-top: 8px; }
+.hint { color: var(--ink-2); font-size: 14px; }
+.mlist label { display: flex; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--rule); cursor: pointer; }
+.mlist .vis { color: var(--ink-2); font-size: 12.5px; margin-left: auto; white-space: nowrap; }
+.tag { display: inline-block; font: 600 12px var(--label); padding: 1px 8px; border-radius: 999px; margin-right: 6px; }
+.tag.blocker { background: var(--border-red); color: #fff; }
+.tag.decide { background: var(--warn); color: #fff; }
+.tag.info { background: var(--sheet-2); color: var(--ink-2); }
+.decision { border-left: 3px solid var(--warn); background: var(--sheet-2); padding: 9px 11px; border-radius: 0 6px 6px 0; margin: 7px 0; }
+.decision.blocker { border-color: var(--border-red); background: var(--border-red-soft); }
+.decision ul { margin: 6px 0 0 18px; padding: 0; color: var(--ink-2); font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chips span { border: 1px solid var(--rule); border-radius: 999px; padding: 2px 10px; font: 500 13.5px var(--label); }
+.chips span.bad { border-color: var(--border-red); color: var(--border-red); background: var(--border-red-soft); font-weight: 600; }
+.dirline { font-size: 15px; padding: 4px 0; }
+pre.task { white-space: pre-wrap; font: 12px/1.55 var(--code); background: var(--sheet-2); padding: 12px; border-radius: 6px; max-height: 260px; overflow: auto; margin: 0; }
+.preview-note { font-size: 13px; color: var(--ink-2); margin-right: auto; align-self: center; }
+input.name { width: 100%; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 6px; background: var(--paper); color: var(--ink); font: 14px var(--code); margin-top: 6px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--sheet); padding: 11px 16px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 14px; align-items: center; z-index: 50; max-width: calc(100% - 32px); font-size: 14.5px; }
+.toast button { background: none; border: 0; color: var(--sheet); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+.modal-bg { position: fixed; inset: 0; background: rgba(17,26,21,.5); display: flex; align-items: center; justify-content: center; z-index: 40; padding: 16px; }
+.modal { background: var(--sheet); border-radius: 10px; box-shadow: var(--shadow); width: min(740px, 100%); max-height: 86vh; display: flex; flex-direction: column; border-top: 4px solid var(--contour); }
+.modal header { padding: 14px 20px; border-bottom: 1px solid var(--rule); }
+.modal header h1 { font: 600 18px/1.25 var(--ui); margin: 0; }
+.modal .body { padding: 16px 20px; overflow: auto; }
+.modal .body h4 { margin: 18px 0 7px; font: 600 15px var(--ui); }
 .modal .body h4:first-child { margin-top: 0; }
-.modal code { font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; word-break: break-all; }
-.modal .row { padding: 5px 0; border-bottom: 1px solid var(--line); }
-.modal .from { color: var(--danger); text-decoration: line-through; opacity: .8; }
+.modal code { font-size: 12.5px; line-height: 1.55; word-break: break-all; }
+.modal .row { padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.modal .from { color: var(--border-red); text-decoration: line-through; opacity: .85; }
 .modal .to { color: var(--ok); }
-.modal footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
-.error { color: var(--danger); }
-#carry { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #fff; padding: 8px 10px 8px 16px; border-radius: 10px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; z-index: 30; max-width: calc(100% - 32px); }
+.modal footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--rule); }
+.error { color: var(--border-red); }
+#carry { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: var(--water); color: #fff; padding: 8px 10px 8px 16px; border-radius: 8px; box-shadow: var(--shadow); display: flex; gap: 12px; align-items: center; z-index: 30; max-width: calc(100% - 32px); }
 #carry[hidden] { display: none; }
 #carry button { background: rgba(255,255,255,.2); border: 0; color: #fff; padding: 5px 10px; border-radius: 6px; font: inherit; cursor: pointer; }
 .actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 900px) {
   main { flex-direction: column; }
   #canvas { min-height: 60vh; }
-  aside { width: auto; border-left: 0; border-top: 1px solid var(--line); }
-  .search input { width: 160px; }
+  aside { width: auto; border-left: 0; border-top: 1px solid var(--rule); }
+  .search input { width: 170px; }
 }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
-<header>
-  <h1>Project map</h1>
-  <nav class="crumbs" id="crumbs"></nav>
+<header class="top">
+  <div class="title"><h1>Project map</h1><small id="subtitle"></small></div>
+  <nav class="crumbs" id="crumbs" aria-label="Current folder"></nav>
   <div class="search">
-    <input id="search" placeholder="Find file or folder…" autocomplete="off">
+    <input id="search" placeholder="Find a file or folder" autocomplete="off" aria-label="Find a file or folder">
     <ul id="results" hidden></ul>
   </div>
-  <span class="stat" id="stats"></span>
+  <div class="status" id="stats"></div>
   <button class="btn" id="undo" disabled title="Undo the last move">Undo</button>
 </header>
 <main>
@@ -158,14 +199,17 @@ const KIND_COLOR = {
   model: 'var(--k-model)', config: 'var(--k-other)', module: 'var(--k-routes)', other: 'var(--k-other)',
   // Spring Boot (Java)
   controller: 'var(--k-component)', repository: 'var(--k-routes)', entity: 'var(--k-store)', dto: 'var(--k-pipe)',
-  mapper: 'var(--k-pipe)', listener: 'var(--k-guard)', component: 'var(--k-other)', application: 'var(--k-guard)',
+  mapper: 'var(--k-pipe)', listener: 'var(--k-guard)', application: 'var(--k-guard)',
   exception: 'var(--k-model)', interface: 'var(--k-model)',
 };
 const SPRING = () => DATA && DATA.framework === 'spring';
-const FOLDER_FILL = ['transparent', 'var(--f1)', 'var(--f2)', 'var(--f3)', 'var(--f4)'];
+// Spring "component" is a plain bean (grey); Angular "component" is UI (blue)
+const kindColor = (k) => (SPRING() && k === 'component' ? 'var(--k-other)' : KIND_COLOR[k] || KIND_COLOR.other);
+const FOLDER_FILL = ['transparent', 'var(--e1)', 'var(--e2)', 'var(--e3)', 'var(--e4)']; // elevation tints
 const svg = d3.select('#svg');
 const layer = svg.append('g');
 const gCircles = layer.append('g');
+const gContours = layer.append('g').style('pointer-events', 'none'); // inner contour line of each folder
 const gEdges = layer.append('g').style('pointer-events', 'none'); // lines never block clicks or drags
 const gLabels = layer.append('g');
 const gGhost = layer.append('g').attr('class', 'ghost');
@@ -270,9 +314,9 @@ function render() {
   gCircles.selectAll('circle').data(nodes, (d) => d.data.path).join('circle')
     .attr('class', (d) => [d.data.type, isService(d) ? 'svc' : '', isMethod(d) && d.data.visibility !== 'public' ? 'priv' : '',
       d.data.type === 'file' && d.violations.length ? 'bad' : '', d === selected ? 'selected' : ''].join(' '))
-    .attr('fill', (d) => isMethod(d) ? 'var(--surface)'
-      : isService(d) ? `color-mix(in srgb, ${KIND_COLOR[d.data.kind] || 'var(--k-service)'} 20%, var(--surface))`
-      : d.data.type === 'file' ? KIND_COLOR[d.data.kind] || KIND_COLOR.other : FOLDER_FILL[Math.min(d.depth, 4)])
+    .attr('fill', (d) => isMethod(d) ? 'var(--sheet)'
+      : isService(d) ? `color-mix(in srgb, ${kindColor(d.data.kind)} 18%, var(--sheet))`
+      : d.data.type === 'file' ? kindColor(d.data.kind) : FOLDER_FILL[Math.min(d.depth, 4)])
     .on('click', onClick)
     .call(drag);
   gLabels.selectAll('g.lbl').data(root.descendants().filter((d) => d !== root), (d) => d.data.path).join((enter) => {
@@ -281,14 +325,17 @@ function render() {
     g.append('text').attr('class', 'sub');
     return g;
   });
+  gContours.selectAll('circle').data(nodes.filter((d) => d.data.type === 'folder'), (d) => d.data.path).join('circle')
+    .attr('fill', 'none').attr('stroke', 'var(--contour)').attr('stroke-width', 0.75).attr('stroke-opacity', 0.35);
   applyVisibility();
   drawEdges();
 }
 
 function applyVisibility() {
+  gContours.selectAll('circle').style('display', (d) => (visibleDepth(d) && d.depth <= focus.depth + 2 ? null : 'none'));
   gCircles.selectAll('circle')
     .style('display', (d) => (visibleDepth(d) ? null : 'none'))
-    .style('opacity', (d) => (d.depth > focus.depth + 2 ? 0.5 : 1))
+    .style('opacity', (d) => (d.depth > focus.depth + 2 ? 0.7 : 1))
     .style('pointer-events', (d) => (interactive(d) ? null : 'none'))
     .classed('selected', (d) => d === selected)
     .classed('picked', (d) => isMethod(d) && d.data.service === pickedService && picked.has(d.data.name));
@@ -307,6 +354,10 @@ function zoomTo(v) {
     .attr('cx', (d) => (d.x - v[0]) * k + W / 2)
     .attr('cy', (d) => (d.y - v[1]) * k + H / 2)
     .attr('r', (d) => Math.max(0, d.r * k));
+  gContours.selectAll('circle')
+    .attr('cx', (d) => (d.x - v[0]) * k + W / 2)
+    .attr('cy', (d) => (d.y - v[1]) * k + H / 2)
+    .attr('r', (d) => Math.max(0, d.r * k - Math.min(6, Math.max(3, d.r * k * 0.04))));
   gLabels.selectAll('g.lbl').each(function (d) {
     const r = d.r * k, x = (d.x - v[0]) * k + W / 2, y = (d.y - v[1]) * k + H / 2;
     const g = d3.select(this);
@@ -326,11 +377,11 @@ function zoomTo(v) {
     const ty = hasKids ? (gap < fs + 4 ? y - r - 5 : y - r + Math.min(gap, fs + 8) - 2) : y + (isFolder ? 0 : fs * 0.35);
     g.select('text.name').attr('x', x).attr('y', ty).attr('text-anchor', 'middle')
       .attr('font-size', fs).attr('font-weight', isFolder ? 650 : 550)
-      .attr('fill', isFolder || isMethod(d) ? 'var(--text)' : '#fff').classed('on-color', !isFolder && !isMethod(d)).text(text);
+      .attr('fill', isFolder || isMethod(d) ? 'var(--ink)' : '#fff').classed('on-color', !isFolder && !isMethod(d)).text(text);
     const sub = isFolder ? folderSub(d) : '';
     const subFits = !hasKids || gap > fs + 26;
     g.select('text.sub').attr('x', x).attr('y', ty + fs + 2).attr('text-anchor', 'middle')
-      .attr('font-size', 11).attr('fill', d.violations.length ? 'var(--danger)' : 'var(--muted)')
+      .attr('font-size', 12).attr('fill', d.violations.length ? 'var(--border-red)' : 'var(--ink-2)')
       .style('display', sub && subFits && r > 60 ? null : 'none').text(sub);
   });
   drawEdges();
@@ -340,7 +391,7 @@ function folderSub(d) {
   if (isService(d)) return `${d.children.length} method${d.children.length === 1 ? '' : 's'}`;
   const files = d.descendants().filter((l) => l.data.type === 'file').length;
   const v = d.violations.length;
-  return `${files} file${files === 1 ? '' : 's'}${v ? ` · ${v} issue${v === 1 ? '' : 's'}` : ''}`;
+  return `${files} file${files === 1 ? '' : 's'}${v ? `, ${v} issue${v === 1 ? '' : 's'}` : ''}`;
 }
 
 function screenPos(d) {
@@ -451,8 +502,8 @@ const drag = d3.drag()
       const r = Math.min(40, Math.max(14, d.r * k));
       gGhost.selectAll('*').remove();
       const ms = dragState.methods;
-      gGhost.append('circle').attr('r', ms ? 18 : r).attr('fill', ms ? 'var(--accent-soft)' : d.data.type === 'file' ? KIND_COLOR[d.data.kind] : 'var(--f3)');
-      gGhost.append('text').attr('y', (ms ? 18 : r) + 16).attr('text-anchor', 'middle').attr('font-size', 13).attr('fill', 'var(--text)')
+      gGhost.append('circle').attr('r', ms ? 18 : r).attr('fill', ms ? 'var(--water-soft)' : d.data.type === 'file' ? kindColor(d.data.kind) : 'var(--e3)');
+      gGhost.append('text').attr('y', (ms ? 18 : r) + 16).attr('text-anchor', 'middle').attr('font-size', 13).attr('fill', 'var(--ink)')
         .text(ms ? (ms.length === 1 ? ms[0] + '()' : `${ms.length} methods`) : labelText(d));
     }
     gGhost.attr('transform', `translate(${event.x},${event.y})`);
@@ -504,8 +555,8 @@ function isAncestorOf(a, b) { let n = b.parent; while (n) { if (n === a) return 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const short = (p) => (DATA && p.startsWith(DATA.root + '/') ? p.slice(DATA.root.length + 1) : p.replace(/^src\/app\//, ''));
 
-async function previewMove(node, target) {
-  const body = { source: node.data.path, target: target.data.path };
+async function previewMove(node, target, extra = {}) {
+  const body = { source: node.data.path, target: target.data.path, ...extra };
   const what = node.data.type === 'file' ? node.data.label : node.data.name + '/';
   const where = (target.data.path || DATA.root) + '/';
   openModal(`<header><h1>Move ${esc(what)} → ${esc(where)}</h1></header><div class="body"><p class="hint">Preparing preview…</p></div>`);
@@ -537,7 +588,7 @@ async function previewMove(node, target) {
       const newPath = (target.data.path ? target.data.path + '/' : '') + (node.data.type === 'file' ? node.data.label : node.data.name);
       load(res.map, target.data.path, newPath);
       const after = res.map.violations.length;
-      toast(`Moved ${res.result.moves.length} file${res.result.moves.length === 1 ? '' : 's'} · ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'} rewritten · issues ${before} → ${after}`, true);
+      toast(`Moved ${res.result.moves.length} file${res.result.moves.length === 1 ? '' : 's'} and rewrote ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'}. Rule issues: ${before} before, ${after} now.`, true);
     } catch (e) {
       openModal(`<header><h1>Move failed</h1></header><div class="body"><p class="error">${esc(e.message)}</p></div><footer><button class="btn" data-close>Close</button></footer>`);
     }
@@ -634,7 +685,7 @@ async function undo() {
   try {
     const res = await api('POST', '/api/undo');
     load(res.map, focus.data.path);
-    toast(`Undone: ${res.undone} · ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'} restored`);
+    toast(`Undone: ${res.undone}. ${res.result.importCount} import${res.result.importCount === 1 ? '' : 's'} restored.`);
   } catch (e) { toast(e.message); }
 }
 document.getElementById('undo').onclick = undo;
@@ -649,8 +700,10 @@ function updateChrome() {
   }));
   const v = DATA.violations.length;
   const nb = DATA.branch && DATA.branch.available ? DATA.branch.newIssues.length : null;
-  document.getElementById('stats').innerHTML = `${DATA.files.length} files · <b class="${v ? 'bad' : 'good'}">${v} issue${v === 1 ? '' : 's'}</b>`
-    + (nb !== null ? ` · <b class="${nb ? 'bad' : 'good'}" title="Rule issues this branch introduced compared with main">${nb} new on branch</b>` : '');
+  document.getElementById('stats').innerHTML = `<span class="pill"><b>${DATA.files.length}</b> files</span>`
+    + `<span class="pill ${v ? '' : 'good'}" title="Rule issues in the working tree"><b>${v}</b> issue${v === 1 ? '' : 's'}</span>`
+    + (nb !== null ? `<span class="pill ${nb ? 'bad' : 'good'}" title="Rule issues this branch introduced compared with main"><b>${nb}</b> new on this branch</span>` : '');
+  document.getElementById('subtitle').textContent = `${SPRING() ? 'Spring Boot' : 'Angular'}, ${DATA.root}`;
   document.getElementById('undo').disabled = !(DATA.history && DATA.history.length);
   document.getElementById('undo').title = DATA.history && DATA.history.length ? `Undo: ${DATA.history.at(-1)}` : 'Nothing to undo';
 }
@@ -661,10 +714,12 @@ function legend() {
       ['listener', 'Listener'], ['config', 'Config / component'], ['model', 'Model / other']]
     : [['component', 'Component'], ['service', 'Service'], ['routes', 'Routes'], ['guard', 'Guard / interceptor'],
       ['pipe', 'Pipe / directive'], ['store', 'State'], ['model', 'Model']];
-  document.getElementById('legend').innerHTML = items.map(([k, l]) => `<span><i style="background:${KIND_COLOR[k]}"></i>${l}</span>`).join('') +
-    `<span><i style="border:2px solid var(--danger);width:12px;height:12px"></i>Rule issue</span>` +
-    `<span><i style="border:2px solid var(--k-service);background:var(--surface);width:12px;height:12px"></i>Method (dashed = private)</span>` +
-    `<span class="tip">Click a bubble to drill down · drag it onto a ${SPRING() ? 'package' : 'folder'} (or a breadcrumb) to move · open a service to move its methods</span>`;
+  const el = document.getElementById('legend');
+  el.innerHTML = `<button class="toggle" type="button">Hide</button><div class="items">` + items.map(([k, l]) => `<span><i style="background:${kindColor(k)}"></i>${l}</span>`).join('') +
+    `<span><i style="border:2px dashed var(--border-red);width:12px;height:12px"></i>Rule issue</span>` +
+    `<span><i style="border:2px solid var(--k-service);background:var(--sheet);width:12px;height:12px"></i>Method (dashed: private)</span>` +
+    `</div><div class="tip">Click to drill down. Drag onto a ${SPRING() ? 'package' : 'folder'} or a breadcrumb to move. Open a service to move its methods.</div>`;
+  el.querySelector('.toggle').onclick = () => { el.classList.toggle('closed'); el.querySelector('.toggle').textContent = el.classList.contains('closed') ? 'Show legend' : 'Hide'; };
 }
 
 const search = document.getElementById('search'), results = document.getElementById('results');
@@ -717,6 +772,18 @@ function carryAction(folder) {
   if ((folder || root).data.type !== 'folder') return ''; // files and folders only move into folders
   return `<div class="actions"><button class="btn primary" id="moveHere">Move ${esc(labelText(carry))} here</button></div>`;
 }
+// "Fix" for placement issues: move the file where the map suggests (preview first, like every move)
+function fixButton(x) {
+  return x.fix ? `<button class="btn small" data-fix="${esc(x.file)}" data-target="${esc(x.fix.target)}" data-create="${x.fix.create ? 1 : ''}">Fix: move to ${esc(x.fix.target)}/</button>` : '';
+}
+function bindFixes(el) {
+  el.querySelectorAll('[data-fix]').forEach((b) => (b.onclick = () => {
+    const node = byPath.get(b.dataset.fix);
+    if (!node) return;
+    const target = byPath.get(b.dataset.target) || { data: { path: b.dataset.target, type: 'folder', name: b.dataset.target.split('/').pop() } };
+    previewMove(node, target, b.dataset.create ? { create: true } : {});
+  }));
+}
 function bindActions(d) {
   const mh2 = document.getElementById('methodsHere');
   if (mh2) mh2.onclick = () => { const c = carry; stopCarry(); methodsDropped(c.service, c.methods, d); };
@@ -739,9 +806,10 @@ function bindActions(d) {
 function branchSection() {
   const b = DATA.branch;
   if (!b || !b.available) return b && b.note ? `<h3>This branch</h3><p class="hint">${esc(b.note)}</p>` : '';
-  const vs = b.source === 'merge-base' ? `${esc(b.base)} at ${esc(b.mergeBase)}${b.ahead ? ` · ${b.ahead} newer commit${b.ahead === 1 ? '' : 's'} on ${esc(b.base)}` : ''}` : 'the committed main map';
-  const issue = (x, cls) => `<div class="viol" ${cls === 'ok' ? 'style="border-color:var(--ok);background:var(--surface-2)"' : ''}><b ${cls === 'ok' ? 'style="color:var(--ok)"' : ''}>${cls === 'ok' ? 'Fixed: ' : 'New: '}${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span></div>`;
-  return `<h3>Branch ${esc(b.branch || '')} vs ${vs}</h3>
+  const vs = b.source === 'merge-base' ? `${esc(b.base)} at ${esc(b.mergeBase)}${b.ahead ? ` (${b.ahead} newer commit${b.ahead === 1 ? '' : 's'} on ${esc(b.base)})` : ''}` : 'the committed main map';
+  const issue = (x, cls) => `<div class="viol ${cls === 'ok' ? 'fixed' : ''}"><b>${cls === 'ok' ? 'Fixed: ' : 'New: '}${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span>${cls === 'ok' ? '' : fixButton(x)}</div>`;
+  const onBase = b.base && (b.branch === b.base || `origin/${b.branch}` === b.base);
+  return `<h3>${onBase ? `You are on ${esc(b.branch)}` : `Branch ${esc(b.branch || '')} compared with ${vs}`}</h3>
     <div class="chips"><span>${b.added.length} added</span><span>${b.moved.length} moved</span><span>${b.deleted.length} deleted</span><span>${b.modified.length} modified</span>
     <span class="${b.newIssues.length ? 'bad' : ''}">${b.newIssues.length} new issue${b.newIssues.length === 1 ? '' : 's'}</span>${b.fixedIssues.length ? `<span>${b.fixedIssues.length} fixed</span>` : ''}</div>
     ${b.newIssues.map((x) => issue(x, 'bad')).join('')}${b.fixedIssues.map((x) => issue(x, 'ok')).join('')}`;
@@ -758,7 +826,7 @@ function showPanel(d) {
     el.innerHTML = `<h2>${esc(DATA.root)}</h2><div class="path">${DATA.files.length} source files</div>${carryAction(root)}
       ${branchSection()}
       <h3>Rule issues (${v.length})</h3>
-      ${v.length ? v.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span></div>`).join('') : '<p class="hint">None. The structure follows all rules.</p>'}
+      ${v.length ? v.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}<br><span class="hint">${esc(x.detail)}</span>${fixButton(x)}</div>`).join('') : '<p class="hint">None. The structure follows all rules.</p>'}
       <h3>Dependencies between areas</h3><ul>${areas}</ul>
       <h3>How to use</h3><p class="hint">Click a folder to drill down, the background to go up. Click a file to see what it imports (blue) and what imports it (orange). Drag a file or folder onto another folder to move it: you get a preview of every file and import that will change before anything happens.</p>`;
   } else if (d.data.type === 'folder') {
@@ -767,40 +835,41 @@ function showPanel(d) {
     el.innerHTML = `<h2>${esc(d.data.name)}/</h2><div class="path">${esc(DATA.root)}/${esc(d.data.path)}</div>
       ${info && info.purpose ? `<div class="purpose">${esc(info.purpose)}${info.owner ? `<br><span class="hint">Owner: ${esc(info.owner)}</span>` : ''}</div>` : '<p class="hint">No purpose described yet. Add it in project-map.config.mjs.</p>'}
       ${carry ? carryAction(d) : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
-      ${d.violations.length ? `<h3>Rule issues inside (${d.violations.length})</h3>` + d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}</div>`).join('') : ''}
+      ${d.violations.length ? `<h3>Rule issues inside (${d.violations.length})</h3>` + d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${fileLink(x.file)}${fixButton(x)}</div>`).join('') : ''}
       <h3>Contains</h3><ul>${kids || '<li class="hint">Empty folder</li>'}</ul>`;
   } else if (isService(d)) {
     const f = d.data;
     const info = (DATA.folderInfo || {})[d.parent.data.path];
     const mine = pickedService === f.path ? picked : new Set();
     const rows = d.children.map((m) => `<label><input type="checkbox" value="${esc(m.data.name)}" ${mine.has(m.data.name) ? 'checked' : ''}>
-      <code>${esc(m.data.name)}()</code><span class="vis">${esc(m.data.visibility)} · ${m.data.lines} line${m.data.lines === 1 ? '' : 's'}</span></label>`).join('');
+      <code>${esc(m.data.name)}()</code><span class="vis">${esc(m.data.visibility)}, ${m.data.lines} line${m.data.lines === 1 ? '' : 's'}</span></label>`).join('');
     const deps = (f.fields || []).filter((x) => x.kind === 'dependency').map((x) => x.token);
     el.innerHTML = `<h2>${esc(f.className)}</h2><div class="path">${esc(DATA.root)}/${esc(f.path)}</div>
       ${info && info.purpose ? `<div class="purpose"><span class="hint">Folder:</span> ${esc(info.purpose)}</div>` : ''}
       ${carry ? carryAction(d) : ''}
       ${deps.length ? `<p class="hint">Injects: ${esc(deps.join(', '))}</p>` : ''}
-      <h3>Methods (${d.children.length}) · ${mine.size} selected</h3>
+      <h3>Methods (${d.children.length}), ${mine.size} selected</h3>
       <div class="mlist">${rows}</div>
       ${!carry && mine.size ? `<div class="actions"><button class="btn primary" id="methodsCarry">Move ${mine.size} selected to…</button></div>
         <p class="hint">Or drag a selected bubble onto another service, a folder, or a breadcrumb.</p>` : (!carry ? '<p class="hint">Select the methods to move, by clicking their bubbles or ticking them here.</p>' : '')}
       ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move file to another folder…</button></div>'}
-      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}</div>`).join('')}
+      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}${fixButton(x)}</div>`).join('')}
       <h3>Imported by (${(importedBy.get(f.path) || []).length})</h3><ul>${(importedBy.get(f.path) || []).map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
   } else {
     const f = d.data;
     const info = (DATA.folderInfo || {})[d.parent.data.path];
     const ins = importedBy.get(f.path) || [];
     el.innerHTML = `<h2>${esc(f.label)}</h2><div class="path">${esc(DATA.root)}/${esc(f.path)}</div>
-      <p><span class="chip" style="background:${KIND_COLOR[f.kind] || KIND_COLOR.other}">${esc(f.kind)}</span>${f.selector ? ` <code>${esc(f.selector)}</code>` : ''}</p>
+      <p><span class="chip" style="background:${kindColor(f.kind)}">${esc(f.kind)}</span>${f.selector ? ` <code>${esc(f.selector)}</code>` : ''}</p>
       ${info && info.purpose ? `<div class="purpose"><span class="hint">Folder:</span> ${esc(info.purpose)}</div>` : ''}
       ${carry && carry.methods ? carryAction(d) : ''}
       ${carry ? '' : '<div class="actions"><button class="btn" id="pickUp">Move to another folder…</button></div>'}
-      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}<br><span class="hint">${esc(x.message || '')}</span></div>`).join('')}
+      ${d.violations.map((x) => `<div class="viol"><b>${esc(x.rule)}</b><br>${esc(x.detail)}<br><span class="hint">${esc(x.message || '')}</span>${fixButton(x)}</div>`).join('')}
       <h3>Imports (${f.imports.length})</h3><ul>${f.imports.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing in the app</li>'}</ul>
       <h3>Imported by (${ins.length})</h3><ul>${ins.map((p) => `<li>${fileLink(p)}</li>`).join('') || '<li class="hint">Nothing</li>'}</ul>`;
   }
   el.querySelectorAll('[data-loc]').forEach((a) => (a.onclick = () => locate(a.dataset.loc)));
+  bindFixes(el);
   bindActions(d);
 }
 
@@ -809,7 +878,7 @@ const defs = svg.append('defs');
 for (const dir of ['out', 'in']) {
   defs.append('marker').attr('id', `arrow-${dir}`).attr('viewBox', '0 0 10 10').attr('refX', 9).attr('refY', 5)
     .attr('markerWidth', 7).attr('markerHeight', 7).attr('orient', 'auto-start-reverse')
-    .append('path').attr('d', 'M0,0 L10,5 L0,10 z').attr('fill', dir === 'out' ? 'var(--accent)' : 'var(--warn)');
+    .append('path').attr('d', 'M0,0 L10,5 L0,10 z').attr('fill', dir === 'out' ? 'var(--water)' : 'var(--warn)');
 }
 function resize() {
   const r = document.getElementById('canvas').getBoundingClientRect();

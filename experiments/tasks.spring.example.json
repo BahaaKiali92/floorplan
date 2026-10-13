@@ -1,0 +1,5 @@
+[
+  { "id": "invoice-endpoint", "prompt": "Add GET /api/invoices/{id} that returns an invoice (id, orderId, amount, createdAt) from a new invoices table." },
+  { "id": "customer-export", "prompt": "Add an endpoint that exports all customers as CSV." },
+  { "id": "order-cancelled-event", "prompt": "When an order is cancelled, publish an OrderCancelled event that the notifications part listens to and logs." }
+]

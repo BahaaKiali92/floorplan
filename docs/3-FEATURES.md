@@ -118,10 +118,28 @@ The hook never blocks or slows a session noticeably and never fails it (errors a
   relative paths, `index.ts`, and tsconfig `paths` aliases (tsconfig comments and trailing commas are fine).
 - Routes: `path:` entries with `loadChildren`, `loadComponent`, `component` or `redirectTo`.
 
+### Big repositories: split map and cache
+
+- Above `splitAbove` files (default 1500; `split: true/false` forces it) the main map becomes an **overview**: a table of
+  areas with purpose, size, main kinds, dependencies and issue count, plus one detail file per area in
+  `project-map-areas/` next to the map (local: `.project-map/areas/`). Claude reads the overview every session and
+  the detail file of the area it works in. Apache Fineract (5,476 classes): 8 KB overview instead of 25 KB.
+- Parse results are cached per file in `.project-map/cache-*.json` (size + modification time), so only changed files
+  are read again: Fineract 3.7 s cold, 1.1 s warm. Delete the cache any time; `PROJECT_MAP_NO_CACHE=1` turns it off.
+
 ## 3. The bubble graph
 
 Start: `/project-map ui` or `npm run map:ui`, then open http://localhost:4321. Works in light and dark mode,
 offline, desktop-sized browser windows (a narrow window stacks the panel below the graph).
+
+The page is drawn like a survey map: folders are contour rings with elevation tints (deeper folders are darker),
+files are coloured by kind like map symbols, and rule issues have a red dashed border. Light and dark mode follow the
+system. The Barlow font is bundled (`scripts/project-map/fonts/`, SIL Open Font License), so the page makes no
+requests outside your machine.
+
+Every placement issue has a **Fix** button ("Fix: move to features/customers/data-access/"): it opens the usual move
+preview for the folder the map suggests (an existing allowed folder that holds most of what the file uses or what
+uses it). The command-line equivalent is `move-cli.mjs <file> --fix`.
 
 ### What you see
 
@@ -157,6 +175,9 @@ offline, desktop-sized browser windows (a narrow window stacks the panel below t
 | service | class name, what it injects, list of methods with checkboxes (visibility, lines), "Move N selected to…", "Move file to another folder…", imported by |
 
 ## 4. Moving files and folders
+
+`--create` lets the target folder be new (`move-cli.mjs x.ts features/billing --create`), and `--fix` moves a
+misplaced file to the suggested folder (`move-cli.mjs <file> --fix`, then `--apply`).
 
 Three ways in the graph:
 
@@ -294,7 +315,7 @@ For scripting or debugging. The server listens on 127.0.0.1 only.
 
 ## 8. Privacy and safety
 
-- Runs locally. No network calls, no telemetry. The graph server binds to 127.0.0.1.
+- Runs locally. No network calls, no telemetry (the graph's fonts and D3 are bundled). The graph server binds to 127.0.0.1.
 - Reads only your repository. Writes only: `.project-map/` (local), the files you move, `docs/PROJECT_MAP.md` and
   `docs/project-map.json` only with `--main`, and `.claude/settings.json` / `.git/hooks/*` only when you install the hooks.
 - Every file move is previewed first; method moves never change code from the graph.

@@ -31,7 +31,7 @@ if [ -n "${TS_PATH:-}" ]; then mkdir -p node_modules && ln -s "$TS_PATH" node_mo
 else npm install --silent --no-audit --no-fund >/dev/null 2>&1; fi
 [ -d node_modules/typescript ] && ok "typescript available" || bad "typescript available (npm install failed? set TS_PATH)"
 git init -q -b main && git add -A && git commit -qm sample
-mkdir -p scripts/project-map && cp "$TOOLS"/* scripts/project-map/
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
 cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
 npm pkg set scripts.map="node scripts/project-map/generate-map.mjs" scripts.map:main="node scripts/project-map/generate-map.mjs --main" \
   scripts.map:check="node scripts/project-map/generate-map.mjs --check" scripts.map:hooks="node scripts/project-map/install-hooks.mjs"
@@ -39,7 +39,7 @@ out=$(npm run -s map:main 2>&1); has "$out" "29 files · 7 routes · 7 areas · 
 out=$(npm run -s map 2>&1); has "$out" "issues: 0 new, 0 fixed, 2 existing" "local map + branch report on main"
 [ -z "$(git status --porcelain .project-map)" ] && ok ".project-map/ ignores itself" || bad ".project-map/ shows up in git status"
 out=$(node scripts/project-map/install-hooks.mjs 2>&1); has "$out" "SessionStart hook" "hooks installer (Claude)"; has "$out" "post-checkout" "hooks installer (git)"
-node scripts/project-map/install-hooks.mjs >/dev/null 2>&1; n=$(grep -c "project-map/generate-map.mjs" .claude/settings.json); [ "$n" = 1 ] && ok "installer is idempotent (one hook entry)" || bad "installer added $n hook entries"
+node scripts/project-map/install-hooks.mjs >/dev/null 2>&1; n=$(grep -c "project-map/generate-map.mjs" .claude/settings.json); [ "$n" = 2 ] && ok "installer is idempotent (session + edit hook, once each)" || bad "installer added $n hook entries"
 git add -A && git commit -qm "setup project map"
 
 echo "== 2. Checks on main"
@@ -109,7 +109,7 @@ echo "== 8. Spring Boot (Java): map, rules, branch report"
 SP=$TMP/spring
 cp -r "$REPO/sample-spring-app" "$SP" && cd "$SP"
 git init -q -b main && git add -A && git commit -qm sample
-mkdir -p scripts/project-map && cp "$TOOLS"/* scripts/project-map/
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/
 cp "$REPO/skill/project-map/templates/project-map.config.spring.mjs" project-map.config.mjs
 G="node scripts/project-map/generate-map.mjs"
 out=$($G --main 2>&1); has "$out" "16 files · 7 endpoints · 6 areas · 6 violations" "main map: counts and 6 seeded issues"
@@ -200,7 +200,7 @@ printf 'package com.acme.core.common;\n\nimport org.springframework.stereotype.S
 printf 'package com.acme.core.service;\n\nimport com.acme.core.common.UseCase;\n\n@UseCase\nclass PayInvoice {\n    void pay(long id) {}\n}\n' > core/src/main/java/com/acme/core/service/PayInvoice.java
 printf 'package com.acme.api.rest;\n\nimport jakarta.ws.rs.*;\n\n@Path("/v1/invoices")\npublic class InvoiceResource {\n    @GET\n    @Path("{id}")\n    public String get(@PathParam("id") long id) { return ""; }\n    @POST\n    public void create() {}\n}\n' > api/src/main/java/com/acme/api/rest/InvoiceResource.java
 printf "export default { framework: 'spring', root: '.' };\n" > project-map.config.mjs
-mkdir -p scripts/project-map && cp "$TOOLS"/* scripts/project-map/ && git init -q -b main && git add -A && git commit -qm init
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && git init -q -b main && git add -A && git commit -qm init
 out=$(node scripts/project-map/generate-map.mjs --main 2>&1); has "$out" "5 files · 3 endpoints · 2 areas" "multi-module map"
 has "$(cat docs/PROJECT_MAP.md)" "| GET /v1/invoices/{id} | InvoiceResource.get() |" "JAX-RS endpoint"
 has "$(cat docs/PROJECT_MAP.md)" "services: InvoiceService, PayInvoice" "custom stereotype (@UseCase meta-annotated with @Service)"
@@ -213,7 +213,7 @@ NG=$TMP/ng2
 cp -r "$REPO/sample-app" "$NG" && cd "$NG"
 printf 'node_modules\n' > .gitignore
 mkdir -p node_modules && ln -s "$APP/node_modules/typescript" node_modules/typescript
-mkdir -p scripts/project-map && cp "$TOOLS"/* scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
 git init -q -b main && git add -A && git commit -qm sample
 G="node scripts/project-map/generate-map.mjs"
 out=$($G --main 2>&1); has "$out" "29 files · 7 routes · 7 areas · 2 violations" "style-guide rules add nothing on a clean sample"
@@ -291,6 +291,90 @@ out=$($G --main 2>&1); has "$out" "is ignored by git" "warns when the main map f
 git checkout -q -- .gitignore
 out=$($G --outputs); has "$out" "docs/PROJECT_MAP.md docs/project-map.json" "--outputs for CI templates"
 out=$(git switch -q -c feat/x && $G --main 2>&1); has "$out" "The main map describes main" "warns when --main runs on a branch"
+
+echo "== 15. Per-edit hook, fixes, PR comment, cache"
+SP2=$TMP/spring2
+cp -r "$REPO/sample-spring-app" "$SP2" && cd "$SP2"
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.spring.mjs" project-map.config.mjs
+git init -q -b main && git add -A && git commit -qm sample
+G="node scripts/project-map/generate-map.mjs"
+$G --main >/dev/null 2>&1 && git add -A && git commit -qm map
+out=$($G --main 2>&1); has "$out" "fix: node scripts/project-map/move-cli.mjs shared/OrderPricingService.java orders" "fix suggestion: the feature the class uses"
+[ -f .project-map/cache-spring.json ] && ok "per-file cache written (.project-map/)" || bad "no cache file"
+m1=$(md5sum < docs/PROJECT_MAP.md); $G --main >/dev/null 2>&1; m2=$(md5sum < docs/PROJECT_MAP.md); [ "$m1" = "$m2" ] && ok "cached run gives the same map" || bad "cached map differs"
+git switch -q -c feature/hook
+printf 'package com.acme.shop.config;\n\nimport com.acme.shop.customers.CustomerRepository;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class ExtraService {\n    private final CustomerRepository repo;\n    public ExtraService(CustomerRepository r) { this.repo = r; }\n}\n' > src/main/java/com/acme/shop/config/ExtraService.java
+out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/config/ExtraService.java"}}' "$SP2" | CLAUDE_PROJECT_DIR="$SP2" $G --hook)
+has "$out" '"hookEventName":"PostToolUse"' "hook answers with PostToolUse context"
+has "$out" "config/ExtraService.java breaks a structure rule" "hook names the file and the issue"
+has "$out" "move-cli.mjs config/ExtraService.java customers" "hook suggests the fix (uses customers)"
+out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/orders/OrderDto.java"}}' "$SP2" | CLAUDE_PROJECT_DIR="$SP2" $G --hook); [ -z "$out" ] && ok "hook is silent for a clean file" || bad "hook spoke for a clean file" "$out"
+out=$(echo 'not json' | CLAUDE_PROJECT_DIR="$SP2" $G --hook); code $? 0 "hook never fails"
+out=$(node scripts/project-map/move-cli.mjs config/ExtraService.java --fix --apply 2>&1); has "$out" "Fix for services-in-features: move to customers/" "move-cli --fix"
+[ -f src/main/java/com/acme/shop/customers/ExtraService.java ] && ok "--fix moved the class" || bad "--fix did not move"
+out=$(node scripts/project-map/move-cli.mjs customers/ExtraService.java billing 2>&1); has "$out" "add --create" "missing target folder: hint for --create"
+out=$(node scripts/project-map/move-cli.mjs customers/ExtraService.java billing --create --apply 2>&1); code $? 0 "--create makes the new package"
+grep -q "^package com.acme.shop.billing;" src/main/java/com/acme/shop/billing/ExtraService.java && ok "class in the new package" || bad "new package"
+cp src/main/java/com/acme/shop/customers/CustomerService.java src/main/java/com/acme/shop/config/X2Service.java
+sed -i.bak 's/package com.acme.shop.customers;/package com.acme.shop.config;\nimport com.acme.shop.customers.*;/; s/CustomerService/X2Service/g' src/main/java/com/acme/shop/config/X2Service.java && rm -f src/main/java/com/acme/shop/config/*.bak
+$G --check --pr-comment "$TMP/pr.md" >/dev/null 2>&1; code $? 1 "check with --pr-comment still fails on new issues"
+pr=$(cat "$TMP/pr.md")
+has "$pr" "<!-- project-map -->" "PR comment marker"
+has "$pr" "**New rule issues (the check fails)**" "PR comment: new issues section"
+has "$pr" "move-cli.mjs config/X2Service.java --fix --apply" "PR comment: fix command"
+has "$pr" "New dependencies between areas" "PR comment: area dependencies"
+git reset -q --hard && git clean -qfd src && git switch -q main
+out=$(node scripts/project-map/install-hooks.mjs --claude 2>&1); has "$out" "edit check (PostToolUse)" "installer adds the edit check"
+grep -q '"matcher": "Write|Edit|MultiEdit"' .claude/settings.json && grep -q -- "--hook" .claude/settings.json && ok "PostToolUse hook in settings" || bad "PostToolUse hook missing"
+
+echo "== 16. Split map, Nx, ArchUnit"
+node -e "const fs=require('fs');let c=fs.readFileSync('project-map.config.mjs','utf8');fs.writeFileSync('project-map.config.mjs',c.replace(\"framework: 'spring',\",\"framework: 'spring',\n  split: true,\"))"
+out=$($G --main 2>&1); md=$(cat docs/PROJECT_MAP.md)
+has "$md" "## Areas" "split view: overview with areas"
+has "$md" "project-map-areas/orders.md" "split view: link to the area file"
+has "$(cat docs/project-map-areas/orders.md)" "# Area orders" "area detail file"
+has "$(cat docs/project-map-areas/orders.md)" "| GET /api/orders/{id} |" "area file has its endpoints"
+has "$($G --outputs)" "docs/project-map-areas" "--outputs includes the area folder"
+git checkout -q -- project-map.config.mjs && rm -rf docs/project-map-areas
+mkdir -p src/test/java/com/acme/shop
+cat > src/test/java/com/acme/shop/ArchitectureTest.java <<'JAVA'
+package com.acme.shop;
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
+import com.tngtech.archunit.junit.ArchTest;
+import com.tngtech.archunit.lang.ArchRule;
+class ArchitectureTest {
+    @ArchTest
+    static final ArchRule sharedIsIndependent = noClasses().that().resideInAPackage("..shop.shared..")
+        .should().dependOnClassesThat().resideInAnyPackage("..orders..", "..customers..");
+    @ArchTest
+    static final ArchRule layers = layeredArchitecture().consideringAllDependencies()
+        .layer("Orders").definedBy("..orders..")
+        .layer("Customers").definedBy("..customers..")
+        .whereLayer("Customers").mayNotBeAccessedByAnyLayer();
+}
+JAVA
+out=$($G --main 2>&1)
+has "$out" "archunit:sharedIsIndependent" "ArchUnit noClasses rule"
+has "$out" "orders/OrderService.java imports customers/Customer.java" "ArchUnit layered rule finds the access"
+has "$(cat docs/PROJECT_MAP.md)" "rule(s) from ArchUnit tests" "ArchUnit listed under Rules"
+NX=$TMP/nx
+mkdir -p "$NX/libs/a/src/lib" "$NX/libs/b/src" "$NX/libs/shared/src" && cd "$NX"
+echo '{}' > nx.json; echo '{"compilerOptions":{}}' > tsconfig.json
+echo '{"name":"a","sourceRoot":"libs/a/src","tags":["scope:a"]}' > libs/a/project.json
+echo '{"name":"b","sourceRoot":"libs/b/src","tags":["scope:b"]}' > libs/b/project.json
+echo '{"name":"shared","sourceRoot":"libs/shared/src","tags":["scope:shared"]}' > libs/shared/project.json
+echo "export const b = 1;" > libs/b/src/index.ts; echo "export const s = 1;" > libs/shared/src/index.ts
+printf "import { b } from '../../../b/src/index';\nimport { s } from '../../../shared/src/index';\nexport const a = b + s;\n" > libs/a/src/lib/a.ts
+cat > eslint.config.mjs <<'JS'
+export default [{ files: ['**/*.ts'], rules: { '@nx/enforce-module-boundaries': ['error', { depConstraints: [
+  { sourceTag: 'scope:a', onlyDependOnLibsWithTags: ['scope:a', 'scope:shared'] } ] }] } }];
+JS
+printf "export default { framework: 'angular', root: '.', units: ['libs/*'] };\n" > project-map.config.mjs
+mkdir -p scripts/project-map && cp -r "$TOOLS"/. scripts/project-map/ && git init -q -b main && git add -A && git commit -qm nx
+out=$(node scripts/project-map/generate-map.mjs --main 2>&1)
+has "$out" "libs/a/src/lib/a.ts imports libs/b/src/index.ts (a [scope:a] → b [scope:b]: scope:a may only depend on scope:a, scope:shared)" "Nx depConstraints (flat ESLint config)"
+has "$out" "1 violations" "Nx: allowed dependency on shared not reported"
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"

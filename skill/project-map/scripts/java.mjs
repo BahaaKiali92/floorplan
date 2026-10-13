@@ -330,20 +330,41 @@ export const SPRING_TOTALS = ['controller', 'service', 'repository', 'entity', '
 
 // ---------- project index ----------
 // Every .java file under scanRoot (main and test), with FQNs, packages and identifier sets.
+const FQN_RX = /\b[a-z_$][\w$]*(?:\.[a-z_$][\w$]*)+\.[A-Z][\w$]*/g;
+const ENDPOINT_HINT = /@(RestController|Controller|Path|KafkaListener|RabbitListener|JmsListener|SqsListener|ServiceBusListener|Scheduled)\b/;
 export class JavaIndex {
-  constructor(scanRoot) {
+  // options.cache (cache.mjs): "lite" index for the map, built from cached facts without keeping the sources.
+  // Without a cache, every file keeps its source (moves and the method analysis need it).
+  constructor(scanRoot, options = {}) {
     this.scanRoot = scanRoot;
+    this.cache = options.cache || null;
     this.files = new Map(); // abs -> info
     this.byFqn = new Map(); // fqn -> abs
     this.byPkg = new Map(); // pkg -> Set(abs)
     for (const abs of walkJava(scanRoot)) this.add(abs);
   }
   add(abs, srcOverride) {
-    const src = srcOverride ?? fs.readFileSync(abs, 'utf8');
-    const p = parseJava(src);
-    const info = { abs, src, pkg: p.pkg, pkgDecl: p.pkgDecl, imports: p.imports, types: p.types, masked: p.masked, headerEnd: p.headerEnd, test: isTestPath(abs) };
+    let info = srcOverride === undefined && this.cache ? this.cache.get(abs) : undefined;
+    if (info) info = { ...info, abs };
+    else {
+      const src = srcOverride ?? fs.readFileSync(abs, 'utf8');
+      const p = parseJava(src);
+      info = { abs, src, pkg: p.pkg, pkgDecl: p.pkgDecl, imports: p.imports, types: p.types, masked: p.masked, headerEnd: p.headerEnd, test: isTestPath(abs) };
+      const body = p.masked.slice(p.headerEnd);
+      info.identList = [...new Set(body.match(/\b[A-Z][\w$]*/g) || [])];
+      info.fqns = [...new Set(body.match(FQN_RX) || [])];
+      info.listener = LISTENER_ANN.test(p.masked);
+      const primaryName = path.basename(abs, '.java');
+      const t = p.types.find((x) => x.name === primaryName) || p.types[0];
+      info.endpoints = t && ENDPOINT_HINT.test(p.masked) ? endpointsOf(info, t, '') : [];
+      if (this.cache && srcOverride === undefined) {
+        const { src: _s, masked: _m, abs: _a, ...facts } = info;
+        this.cache.set(abs, facts);
+      }
+    }
     const primary = path.basename(abs, '.java');
-    info.typeNames = p.types.length ? p.types.map((t) => t.name) : [primary];
+    info.typeNames = info.types.length ? info.types.map((t) => t.name) : [primary];
+    const p = { pkg: info.pkg };
     this.files.set(abs, info);
     for (const n of info.typeNames) this.byFqn.set(p.pkg ? `${p.pkg}.${n}` : n, abs);
     if (!this.byPkg.has(p.pkg)) this.byPkg.set(p.pkg, new Set());
@@ -352,10 +373,7 @@ export class JavaIndex {
   }
   // identifiers (capitalized words) used outside package/import lines
   idents(info) {
-    if (!info._idents) {
-      const body = info.masked.slice(info.headerEnd);
-      info._idents = new Set(body.match(/\b[A-Z][\w$]*/g) || []);
-    }
+    if (!info._idents) info._idents = new Set(info.identList || (info.masked.slice(info.headerEnd).match(/\b[A-Z][\w$]*/g) || []));
     return info._idents;
   }
   // resolve a dotted name to a project file: exact type, nested type, or static member
@@ -387,8 +405,8 @@ export class JavaIndex {
       if (f !== info.abs && this.files.get(f).typeNames.some((n) => idents.has(n))) out.add(f);
     }
     // fully qualified names in code
-    for (const x of info.masked.slice(info.headerEnd).matchAll(/\b[a-z_$][\w$]*(?:\.[a-z_$][\w$]*)+\.[A-Z][\w$]*/g)) {
-      const r = this.byFqn.get(x[0]);
+    for (const x of info.fqns || (info.masked.slice(info.headerEnd).match(FQN_RX) || [])) {
+      const r = this.byFqn.get(x);
       if (r && r !== info.abs) out.add(r);
     }
     out.delete(info.abs);
@@ -457,9 +475,9 @@ export function endpointsOf(info, type, relPath) {
 
 // ---------- the map ----------
 // Returns the same shape generate-map.mjs builds for Angular.
-export function scanSpring({ ROOT, scanRoot, config, matchAny }) {
+export function scanSpring({ ROOT, scanRoot, config, matchAny, cache }) {
   const rel = (abs) => toPosix(path.relative(ROOT, abs));
-  const index = new JavaIndex(scanRoot);
+  const index = new JavaIndex(scanRoot, { cache });
   const inRoot = (abs) => abs.startsWith(ROOT + path.sep);
   // tests live in src/test/java with the same packages; count those that mirror the root
   const sep = path.sep;
@@ -477,16 +495,14 @@ export function scanSpring({ ROOT, scanRoot, config, matchAny }) {
     if (matchAny(config.ignore, p)) continue;
     const primaryName = path.basename(info.abs, '.java');
     const t = info.types.find((x) => x.name === primaryName) || info.types[0];
-    const entry = { path: p, kind: t ? kindOfType(t, info.masked, stereo) : 'other', name: primaryName, imports: [] };
+    const entry = { path: p, kind: t ? kindOfType(t, info.listener ? '@KafkaListener' : '', stereo) : 'other', name: primaryName, imports: [] };
     if (info.pkg) entry.package = info.pkg;
     if (t && t.annotations.length) entry.annotations = t.annotations.map((a) => a.name);
     const deps = index.depsOf(info);
     for (const f of deps.files) if (inRoot(f) && !index.files.get(f).test) entry.imports.push(rel(f));
     for (const e of deps.externals) { const lib = libraryOf(e); if (lib) externals.set(lib, (externals.get(lib) || 0) + 1); }
     entry.imports.sort();
-    if (t && (entry.kind === 'controller' || /@(KafkaListener|RabbitListener|JmsListener|SqsListener|ServiceBusListener|Scheduled)\b/.test(info.masked))) {
-      routes.push(...endpointsOf(info, t, p));
-    }
+    for (const e of info.endpoints || []) routes.push({ ...e, file: p });
     files.push(entry);
   }
   files.sort((a, b) => a.path.localeCompare(b.path));

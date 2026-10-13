@@ -6,9 +6,11 @@
 //   node scripts/project-map/install-hooks.mjs --git      # only the git hooks
 //   node scripts/project-map/install-hooks.mjs --remove   # remove both
 //
-// Claude Code: adds a SessionStart hook to .claude/settings.json (commit it to share with the team).
-//   At every session start (and after /clear or compaction) it refreshes .project-map/ and gives Claude
+// Claude Code: adds hooks to .claude/settings.json (commit it to share with the team).
+//   SessionStart: at every session start (and after /clear or compaction) it refreshes .project-map/ and gives Claude
 //   a short summary of what the current branch changed compared with main.
+//   PostToolUse (Write/Edit): when Claude writes a file that breaks a structure rule (new compared with main), Claude
+//   is told right away, with the fix. Skip it with --no-edit-check.
 // Git: post-checkout, post-merge and post-rewrite refresh .project-map/ after switching branches,
 //   pulling, merging or rebasing. Local to this clone (git hooks are never committed).
 // Running it twice changes nothing. Existing hooks and settings are kept.
@@ -37,15 +39,21 @@ if (doClaude) {
   const script = `"$CLAUDE_PROJECT_DIR/${projRel ? projRel + '/' : ''}scripts/project-map/generate-map.mjs"`;
   const ours = (h) => (h.command || '').includes('project-map/generate-map.mjs');
   settings.hooks ||= {};
-  const groups = (settings.hooks.SessionStart || []).map((g) => ({ ...g, hooks: (g.hooks || []).filter((h) => !ours(h)) }))
+  const strip = (event) => (settings.hooks[event] || []).map((g) => ({ ...g, hooks: (g.hooks || []).filter((h) => !ours(h)) }))
     .filter((g) => g.hooks.length);
-  if (!REMOVE) groups.push({ hooks: [{ type: 'command', command: `node ${script} --session`, timeout: 60 }] });
-  if (groups.length) settings.hooks.SessionStart = groups; else delete settings.hooks.SessionStart;
+  // SessionStart: branch summary for Claude at every session start
+  const start = strip('SessionStart');
+  if (!REMOVE) start.push({ hooks: [{ type: 'command', command: `node ${script} --session`, timeout: 60 }] });
+  if (start.length) settings.hooks.SessionStart = start; else delete settings.hooks.SessionStart;
+  // PostToolUse: after Claude writes or edits a file, tell it right away if that file breaks a structure rule
+  const post = strip('PostToolUse');
+  if (!REMOVE && !args.includes('--no-edit-check')) post.push({ matcher: 'Write|Edit|MultiEdit', hooks: [{ type: 'command', command: `node ${script} --hook`, timeout: 30 }] });
+  if (post.length) settings.hooks.PostToolUse = post; else delete settings.hooks.PostToolUse;
   if (!Object.keys(settings.hooks).length) delete settings.hooks;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
   console.log(REMOVE ? `✓ Removed the SessionStart hook from ${path.relative(process.cwd(), file)}`
-    : `✓ Claude Code: SessionStart hook in ${path.relative(process.cwd(), file)} (commit it to share with the team)`);
+    : `✓ Claude Code: SessionStart hook${args.includes('--no-edit-check') ? '' : ' and edit check (PostToolUse)'} in ${path.relative(process.cwd(), file)} (commit it to share with the team)`);
 }
 
 // ---------- git hooks ----------

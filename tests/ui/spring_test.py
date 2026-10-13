@@ -56,6 +56,15 @@ with sync_playwright() as p:
     page.click('#undo'); time.sleep(1.5)
     print('after undo:', page.inner_text('#toast'))
 
+    # 1b) the same fix from the rule issue's "Fix" button (suggested target), then undo
+    page.locator('#crumbs button').first.click(); time.sleep(0.9)
+    page.locator('[data-fix="shared/OrderPricingService.java"]').first.click(); page.wait_for_selector('#confirm'); time.sleep(0.3)
+    print('fix preview:', page.inner_text('.modal header'))
+    page.click('#confirm'); time.sleep(1.5)
+    print('fix toast:', page.inner_text('#toast'))
+    page.screenshot(path=f'{OUT}/s4b-fixed.png')
+    page.click('#undo'); time.sleep(1.5)
+
     # 2) open OrderService, select exportCsv, drag it onto the orders breadcrumb -> new class
     page.locator('#crumbs button').first.click(); time.sleep(0.9)
     page.fill('#search', 'OrderService.java'); time.sleep(0.2); page.keyboard.press('Enter'); time.sleep(1.0)

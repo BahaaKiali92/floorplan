@@ -1,10 +1,10 @@
-# Handoff: where project-map stands (2026-10-13, v0.6.0)
+# Handoff: where project-map stands (2026-10-13, v0.7.0)
 
 Read `CLAUDE.md` first for the layout and working rules. This file says what is done and what comes next.
 
 ## Status
 
-- Version 0.6.0: Angular and Spring Boot (Java). All 125 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
+- Version 0.7.0: Angular and Spring Boot (Java). All 157 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
   `SHERIFF_PKG` for the Sheriff tests);
   Playwright UI tests in `tests/ui/` (Angular and `spring_test.py`).
 - Spring Boot (0.5.0): map with kinds from annotations, HTTP endpoints and listeners, kind-based rules
@@ -19,6 +19,8 @@ Read `CLAUDE.md` first for the layout and working rules. This file says what is 
   warning, no-CI mode, CRLF-safe CLAUDE.md writer, Windows notes, component-scoped services, near-miss hints, UI
   lifetime note, `/project-map update` + version check. Plus Angular style-guide rules, Angular 20 suffix-less files,
   and Sheriff as a rule source.
+- 0.7.0: edit-check hook, fix suggestions + Fix buttons, PR comment, split map + cache, Nx + ArchUnit rules,
+  experiments/run.mjs, graph redesign, Linux + Windows CI (first Windows run not yet seen: check the Actions tab).
 - Spring Boot: tested on petclinic, buckpal, Apache Fineract; not yet on a company project.
 
 ## Decisions so far
@@ -39,13 +41,14 @@ Position it on those, not on "a map for Claude". Re-check the community catalog 
 
 ## Next steps (in this order)
 
-1. **Test on real company projects**: Angular (one large, one messy) and Spring Boot (one single-module, one
+1. **Run `experiments/run.mjs` on MinuteView** (5 tasks, 3 runs) and put the numbers in docs/experiments.
+2. **Test on real company projects**: Angular (one large, one messy) and Spring Boot (one single-module, one
    multi-module; Maven and Gradle). Note every problem; fix one per session.
    Never commit company code to this repo.
-2. **Publishing prep:** LICENSE file, real author in `plugin/.claude-plugin/plugin.json`, GitHub Actions running
+3. **Publishing prep:** LICENSE file, real author in `plugin/.claude-plugin/plugin.json`, GitHub Actions running
    `tests/run.sh`, `claude plugin validate --strict`, final name.
-3. **Read Nx module boundaries** as a rule source (Sheriff is done); for Java maybe ArchUnit.
-4. **React and Vue** (about 1–2 weeks): `.vue` script-block imports, JSX, Vite aliases, kinds for hooks /
+4. More rule sources if teams ask: eslint-plugin-boundaries, dependency-cruiser.
+5. **React and Vue** (about 1–2 weeks): `.vue` script-block imports, JSX, Vite aliases, kinds for hooks /
    stores / composables, warn that moves change routes in Next.js / Nuxt (file-based routing).
    Method moves stay Angular and Spring only for now.
-5. Later: eslint-plugin-boundaries / dependency-cruiser rules, relative `.scss` import rewriting, Kotlin.
+6. Later: relative `.scss` import rewriting, Kotlin.

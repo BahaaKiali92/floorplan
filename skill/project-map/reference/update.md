@@ -7,7 +7,7 @@ what CI and teammates use). This brings the copy, the CLAUDE.md section and the 
 1. Versions: `cat <SKILL_DIR>/scripts/VERSION` (new) and `cat scripts/project-map/VERSION` (in the repo; missing means
    0.5.0 or older). If they are equal, say so and stop unless the user wants a re-copy.
 2. Work on a branch (`git switch -c chore/update-project-map` unless the user says otherwise).
-3. Copy: `cp "<SKILL_DIR>/scripts/"* scripts/project-map/`. Show `git diff --stat scripts/project-map`.
+3. Copy: `cp -r "<SKILL_DIR>/scripts/." scripts/project-map/`. Show `git diff --stat scripts/project-map`.
 4. CLAUDE.md section: `node scripts/project-map/claude-md.mjs` (keeps line endings, replaces only its own section;
    add `--no-ci` if the config has `ci: false` or the repo has no CI job for the map).
 5. Config: compare `project-map.config.mjs` with the matching template

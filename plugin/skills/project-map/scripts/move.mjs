@@ -10,15 +10,17 @@ import { mappingForMoveJava, planFromPairsJava } from './java-move.mjs';
 
 // ---------- building the file mapping ----------
 
-export function mappingForMove(ctx, sourceRel, targetFolderRel) {
-  if (ctx.framework === 'spring') return mappingForMoveJava(ctx, sourceRel, targetFolderRel);
+// opts.create: the target folder may not exist yet (it is created by the move)
+export function mappingForMove(ctx, sourceRel, targetFolderRel, opts = {}) {
+  if (ctx.framework === 'spring') return mappingForMoveJava(ctx, sourceRel, targetFolderRel, opts);
   const { appRoot } = ctx;
   const src = path.resolve(appRoot, sourceRel);
   const target = path.resolve(appRoot, targetFolderRel || '.');
   const errors = [];
   const inApp = (p) => p === appRoot || p.startsWith(appRoot + path.sep);
   if (!inApp(src) || !fs.existsSync(src)) errors.push(`Source not found: ${sourceRel}`);
-  if (!inApp(target) || !fs.existsSync(target) || !fs.statSync(target).isDirectory()) errors.push(`Target folder not found: ${targetFolderRel}`);
+  if (!inApp(target)) errors.push(`Target folder is outside the app: ${targetFolderRel}`);
+  else if (fs.existsSync(target) ? !fs.statSync(target).isDirectory() : !opts.create) errors.push(`Target folder not found: ${targetFolderRel}${opts.create ? '' : ' (add --create to create it)'}`);
   if (errors.length) return { errors, pairs: [] };
 
   const pairs = [];
@@ -159,8 +161,8 @@ export function summarize(ctx, plan) {
   };
 }
 
-export function planMove(ctx, sourceRel, targetFolderRel) {
-  const { errors, pairs } = mappingForMove(ctx, sourceRel, targetFolderRel);
+export function planMove(ctx, sourceRel, targetFolderRel, opts = {}) {
+  const { errors, pairs } = mappingForMove(ctx, sourceRel, targetFolderRel, opts);
   if (errors.length) return { errors };
   return { plan: planFromPairs(ctx, pairs) };
 }

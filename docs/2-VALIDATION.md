@@ -92,6 +92,21 @@ When a file is in a folder whose name is close to an allowed one, the message sa
 The template has the first three on as warnings and the spec rule commented out (it is noisy in older apps).
 Make a rule an error once main is clean of it.
 
+### Nx and ArchUnit
+
+- **Nx** (`nx.json` present): the `depConstraints` of `@nx/enforce-module-boundaries` (from `.eslintrc.json` or
+  `eslint.config.*`) are checked with the `tags` of every `project.json`: `onlyDependOnLibsWithTags`,
+  `notDependOnLibsWithTags`, `sourceTag` / `allSourceTags`, `*`, globs and `/regex/` tags. Issues: `nx:module-boundaries`.
+  Set the map root to the workspace (`root: '.'`). `nx: false` turns it off.
+- **ArchUnit** (Spring Boot): rules in test classes are read: `noClasses().that().resideIn(Any)Package(..)`
+  `.should().dependOnClassesThat()/accessClassesThat().resideIn(Any)Package(..)`, the same with
+  `classes()…onlyDependOnClassesThat()`, and `layeredArchitecture()` with `mayNotBeAccessedByAnyLayer`,
+  `mayOnlyBeAccessedByLayers`, `mayNotAccessAnyLayer`, `mayOnlyAccessLayers`. Issues: `archunit:<field name>`. Other
+  ArchUnit rules still run in your tests; the map shows only these. `archunit: false` turns it off.
+
+Like Sheriff, both are extra rule sources: their issues appear in the map, the graph, the branch report and the
+new-issues-only check.
+
 ### Sheriff
 
 If the project uses [Sheriff](https://github.com/softarc-consulting/sheriff) (`sheriff.config.ts` and

@@ -88,6 +88,11 @@ Without Claude: `npm run map` (local + branch report), `npm run map:main` (CI), 
 - Work on a new branch. File moves in the graph change the working copy; `git checkout .` / `git reset --hard` undoes everything.
 - Method moves in the graph never change code; only `/project-map move-methods` does, and only after you answer its questions.
 
+## Measure it on your project
+
+`experiments/run.mjs` (in the repository) runs the same tasks with and without the map using headless Claude Code
+and compares new rule issues, files created, turns and cost. See `experiments/README.md`.
+
 ## Known limits
 
 - Angular and Spring Boot (Java). Not yet: Kotlin, React, Vue.

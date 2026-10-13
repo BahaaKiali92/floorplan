@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0 (2026-10-13)
+
+- Edit check: a PostToolUse hook tells Claude right after it writes a file that breaks a rule, with the fix
+  (about 0.2 s; installed by `install-hooks.mjs`, skip with `--no-edit-check`).
+- Fixes: every placement issue gets a suggested folder; "Fix" buttons in the graph; `move-cli.mjs <file> --fix`;
+  `--create` for new target folders.
+- Pull-request comment from CI (GitHub, Azure DevOps, GitLab): moves, new folders, area dependencies, new and fixed
+  rule issues (`--check --pr-comment <file>`).
+- Big repositories: split map (overview + one file per area) and a per-file parse cache.
+- Rule sources: Nx `@nx/enforce-module-boundaries` and ArchUnit package/layer rules.
+- `experiments/run.mjs`: with/without-map comparison on your own repository.
+- Graph redesign ("survey map": contour rings, elevation tints, map-legend colours, bundled Barlow font, no external
+  requests), legend can be hidden, sentence-case panels.
+- Tests on Linux and Windows in GitHub Actions (`.github/workflows/test.yml`).
+
 ## 0.6.0 (2026-10-13)
 
 Feedback from the first real Angular project:

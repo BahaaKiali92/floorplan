@@ -10,7 +10,8 @@ on:
     branches: [main]
 
 permissions:
-  contents: write   # needed to commit the regenerated map on main
+  contents: write        # needed to commit the regenerated map on main
+  pull-requests: write   # needed to comment on pull requests
 
 concurrency:
   group: project-map-${{ github.ref }}
@@ -28,9 +29,17 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check rules (only new issues fail)
+      - name: Check rules (only new issues fail) and comment on the PR
         if: github.event_name == 'pull_request'
-        run: node scripts/project-map/generate-map.mjs --check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status=0
+          node scripts/project-map/generate-map.mjs --check --pr-comment project-map-comment.md || status=$?
+          # one comment per PR, updated on every push (forks have no write token: then only the check runs)
+          gh pr comment ${{ github.event.pull_request.number }} --body-file project-map-comment.md --edit-last 2>/dev/null \
+            || gh pr comment ${{ github.event.pull_request.number }} --body-file project-map-comment.md || true
+          exit $status
 
       - name: Regenerate the main map
         if: github.event_name == 'push'

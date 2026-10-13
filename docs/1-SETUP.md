@@ -164,7 +164,7 @@ Manual setup without Claude:
 
 ```bash
 mkdir -p scripts/project-map
-cp ~/.claude/skills/project-map/scripts/* scripts/project-map/
+cp -r ~/.claude/skills/project-map/scripts/. scripts/project-map/
 cp ~/.claude/skills/project-map/templates/project-map.config.mjs .     # then edit it
 npm pkg set scripts.map="node scripts/project-map/generate-map.mjs" \
             scripts.map:main="node scripts/project-map/generate-map.mjs --main" \
@@ -258,10 +258,13 @@ In `skill/project-map/templates/ci/`:
 
 Each does two jobs:
 
-1. **Pull / merge requests**: `npm run map:check`. Fails only when the PR introduces **new** rule issues; existing
-   issues on main don't block anyone. Fixed issues are reported.
-2. **Builds of main** (after a merge): `npm run map:main`, then commits `docs/PROJECT_MAP.md` and
-   `docs/project-map.json` with `[skip ci]` if they changed.
+1. **Pull / merge requests**: the check (`generate-map.mjs --check`). Fails only when the PR introduces **new** rule
+   issues; existing issues on main don't block anyone. It also posts a **comment on the PR**: files moved, new folders,
+   new dependencies between areas, new and fixed rule issues with the fix command. GitHub updates one comment per
+   PR (needs `pull-requests: write`, set in the template); Azure DevOps adds a thread (the build identity needs
+   *Contribute to pull requests*); GitLab posts a note when `PROJECT_MAP_TOKEN` has the `api` scope.
+2. **Builds of main** (after a merge): `generate-map.mjs --main`, then commits the map (the paths come from
+   `generate-map.mjs --outputs`, including the area files of a split map) with `[skip ci]` if they changed.
 
 Requirements:
 - **Full git history** in the checkout (`fetch-depth: 0` / `fetchDepth: 0` / `GIT_DEPTH: 0`, already set) so the check
@@ -279,6 +282,7 @@ Requirements:
 | Hook | When | Effect |
 |---|---|---|
 | Claude Code SessionStart (`.claude/settings.json`) | every new session, `/clear`, after compaction | refreshes `.project-map/` and adds a short summary to Claude's context: branch, branch point, files added/moved/deleted/modified, new/fixed rule issues |
+| Claude Code PostToolUse, the **edit check** (`.claude/settings.json`) | every time Claude writes or edits a `.ts` / `.java` file | if that file now breaks a rule (new compared with main), Claude is told right away, with the fix command. Takes about 0.2 s thanks to the per-file cache. Silent when the file is fine. Skip it with `--no-edit-check` |
 | git post-checkout / post-merge / post-rewrite (`.git/hooks/`) | switching branches, pulling, merging, rebasing | refreshes `.project-map/` silently |
 
 Options: `npm run map:hooks -- --claude` (only Claude), `-- --git` (only git), `-- --remove` (remove both).

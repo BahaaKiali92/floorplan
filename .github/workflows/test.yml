@@ -1,0 +1,38 @@
+# Runs the end-to-end tests (tests/run.sh) on Linux and Windows for every push and pull request.
+# Windows runs in Git Bash, the way most Windows developers run the tools.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4      # javac compiles the Spring sample after every move
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Test tools (TypeScript for the Angular analysis, Sheriff)
+        run: npm install --no-save --no-audit --no-fund --prefix "$RUNNER_TEMP/tools" typescript@5 @softarc/sheriff-core
+
+      - name: End-to-end tests
+        run: |
+          TS_PATH="$RUNNER_TEMP/tools/node_modules/typescript" \
+          SHERIFF_PKG="$RUNNER_TEMP/tools/node_modules/@softarc/sheriff-core" \
+          bash tests/run.sh

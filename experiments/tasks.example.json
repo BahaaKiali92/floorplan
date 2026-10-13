@@ -1,0 +1,7 @@
+[
+  { "id": "export-csv", "prompt": "Add a CSV export to the customer list: a service that builds the CSV from the customers and a \"Download CSV\" button in the customer list." },
+  { "id": "spinner", "prompt": "Create a reusable loading spinner and show it in the order list while the orders are loading." },
+  { "id": "correlation-id", "prompt": "Add an HTTP interceptor that sets an X-Correlation-Id header (a new UUID per request) and register it in the app." },
+  { "id": "invoices-page", "prompt": "Add a new lazy-loaded /invoices page that loads GET /api/invoices and shows the invoices in a table." },
+  { "id": "reuse", "prompt": "Show the total amount of each order in the order list, formatted as euros. Reuse what the app already has where possible." }
+]

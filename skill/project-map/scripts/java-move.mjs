@@ -32,14 +32,15 @@ function listFiles(dir) {
   return out;
 }
 
-export function mappingForMoveJava(ctx, sourceRel, targetFolderRel) {
+export function mappingForMoveJava(ctx, sourceRel, targetFolderRel, opts = {}) {
   const { appRoot } = ctx;
   const src = path.resolve(appRoot, sourceRel);
   const target = path.resolve(appRoot, targetFolderRel || '.');
   const errors = [];
   const inApp = (p) => p === appRoot || p.startsWith(appRoot + path.sep);
   if (!inApp(src) || !fs.existsSync(src)) errors.push(`Source not found: ${sourceRel}`);
-  if (!inApp(target) || !fs.existsSync(target) || !fs.statSync(target).isDirectory()) errors.push(`Target folder not found: ${targetFolderRel}`);
+  if (!inApp(target)) errors.push(`Target folder is outside the map root: ${targetFolderRel}`);
+  else if (fs.existsSync(target) ? !fs.statSync(target).isDirectory() : !opts.create) errors.push(`Target folder not found: ${targetFolderRel}${opts.create ? '' : ' (add --create to create it)'}`);
   if (errors.length) return { errors, pairs: [] };
   const tp = packageOfDir(target);
   if (!tp) return { errors: ['The target folder is not inside a Java source folder (src/main/java).'], pairs: [] };

@@ -17,6 +17,8 @@
 //   node scripts/project-map/generate-map.mjs --main     # write the main map in docs/     (npm run map:main, CI on main)
 //   node scripts/project-map/generate-map.mjs --check    # fail only on rule issues NEW compared with main (npm run map:check)
 //   node scripts/project-map/generate-map.mjs --check --strict   # fail on every rule issue
+//   node scripts/project-map/generate-map.mjs --check --pr-comment pr.md   # also write a pull-request comment (CI)
+//   node scripts/project-map/generate-map.mjs --hook     # Claude Code PostToolUse hook (stdin: hook input)
 //   node scripts/project-map/generate-map.mjs --session  # Claude Code SessionStart hook: short branch summary on stdout
 //   options: --base <branch> (default: config baseBranch or "main"), --quiet, --config <file>
 
@@ -32,12 +34,26 @@ import { createRequire } from 'node:module';
 const args = process.argv.slice(2);
 const argVal = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const SESSION = args.includes('--session');
+// --hook: Claude Code PostToolUse hook. Reads the hook input on stdin; if the written file breaks a rule (new compared
+// with main), prints a short note for Claude. Never fails, never writes the local maps.
+const HOOK = args.includes('--hook');
+let HOOK_FILE = null;
+if (HOOK) {
+  process.on('uncaughtException', () => process.exit(0));
+  process.on('unhandledRejection', () => process.exit(0));
+  try {
+    const input = JSON.parse(fs.readFileSync(0, 'utf8') || '{}');
+    HOOK_FILE = input.tool_input?.file_path || input.tool_input?.path || null;
+    if (input.cwd && fs.existsSync(input.cwd) && !process.env.CLAUDE_PROJECT_DIR) process.chdir(input.cwd);
+  } catch { process.exit(0); }
+  if (!HOOK_FILE || !/\.(ts|java)$/.test(HOOK_FILE) || /\.(spec|test)\.ts$|\.d\.ts$/.test(HOOK_FILE)) process.exit(0);
+}
 const MODE = args.includes('--json-stdout') ? 'json' : args.includes('--main') ? 'main'
-  : args.includes('--check') ? 'check' : SESSION ? 'session' : 'local';
-const QUIET = args.includes('--quiet');
+  : args.includes('--check') ? 'check' : SESSION ? 'session' : HOOK ? 'hook' : 'local';
+const QUIET = args.includes('--quiet') || HOOK;
 const CHECK = MODE === 'check';
 // The SessionStart hook may start in another folder; run from the project.
-if (SESSION && process.env.CLAUDE_PROJECT_DIR && fs.existsSync(process.env.CLAUDE_PROJECT_DIR)) process.chdir(process.env.CLAUDE_PROJECT_DIR);
+if ((SESSION || HOOK) && process.env.CLAUDE_PROJECT_DIR && fs.existsSync(process.env.CLAUDE_PROJECT_DIR)) process.chdir(process.env.CLAUDE_PROJECT_DIR);
 if (SESSION) {
   // A hook must never break the session: any error ends silently.
   process.on('uncaughtException', () => process.exit(0));
@@ -75,18 +91,30 @@ const defaults = {
   compactDepth: 3,     // folder levels shown in compact mode (reduced automatically to stay under compactMaxLines)
   compactMaxLines: 250,
   compactWideFolder: 30, // in compact mode, a folder with more subfolders lists their names on one line
+  split: 'auto',       // big repos: an overview map plus one detail file per area ('auto' above splitAbove files, true, false)
+  splitAbove: 1500,
 };
 const config = { ...defaults, ...userConfig, framework: FRAMEWORK, output: { ...defaults.output, ...(userConfig.output || {}) } };
 
 // CI templates ask for the map paths, so they work with any output folder
-if (args.includes('--outputs')) { console.log(`${config.output.markdown} ${config.output.json}`); process.exit(0); }
+const AREAS_DIR = path.join(path.dirname(config.output.markdown), 'project-map-areas');
+if (args.includes('--outputs')) {
+  const extra = fs.existsSync(path.resolve(AREAS_DIR)) || config.split === true ? ` ${AREAS_DIR.split(path.sep).join('/')}` : '';
+  console.log(`${config.output.markdown} ${config.output.json}${extra}`);
+  process.exit(0);
+}
 const ROOT = path.resolve(config.root);
+if (HOOK && !fs.existsSync(path.resolve(configPath))) process.exit(0); // not a mapped project
+if (HOOK && !path.resolve(HOOK_FILE).startsWith(ROOT + path.sep)) process.exit(0);
 if (!fs.existsSync(ROOT)) {
-  if (SESSION) process.exit(0);
+  if (SESSION || HOOK) process.exit(0);
   console.error(`Root folder not found: ${config.root}`);
   process.exit(1);
 }
 const rel = (abs) => path.relative(ROOT, abs).split(path.sep).join('/');
+// Per-file parse cache in the local folder (not for the temporary map of the branch point)
+const CACHE = MODE === 'json' || process.env.PROJECT_MAP_NO_CACHE ? null
+  : (await import('./cache.mjs')).openCache(path.resolve(config.output.local || '.project-map'), FRAMEWORK, TOOL_VERSION);
 
 // ---------- glob patterns ----------
 // '**' = any depth, '*' = one path segment (captured, used for allowSame).
@@ -231,9 +259,17 @@ function parseImports(src) {
   for (const rx of patterns) for (const m of src.matchAll(rx)) specs.add(m[1]);
   return [...specs];
 }
+let KNOWN_TS = null; // all .ts files under the root: resolving imports without touching the disk
+const fsFileCache = new Map();
+function isFile(p) {
+  if (KNOWN_TS && KNOWN_TS.has(p)) return true;
+  if (KNOWN_TS && p.startsWith(ROOT + path.sep) && p.endsWith('.ts')) return false;
+  if (!fsFileCache.has(p)) fsFileCache.set(p, fs.existsSync(p) && fs.statSync(p).isFile());
+  return fsFileCache.get(p);
+}
 function tryFile(base) {
   for (const cand of [base, `${base}.ts`, path.join(base, 'index.ts')]) {
-    if (fs.existsSync(cand) && fs.statSync(cand).isFile()) return cand;
+    if (isFile(cand)) return cand;
   }
   return null;
 }
@@ -252,25 +288,57 @@ function resolveImport(fromAbs, spec) {
   return { external: pkg };
 }
 
+// Facts of one file that don't depend on other files (cached per file; see cache.mjs)
+function angularFacts(name, src) {
+  const f = { kind: kindOf(name, src), specs: parseImports(src) };
+  const decl = (src.match(/@(Component|Directive|Pipe|Injectable|NgModule)\s*\(/g) || []).length;
+  if (decl > 1) f.declarations = decl;
+  const pin = /providedIn\s*:\s*['"](\w+)['"]/.exec(src);
+  if (pin) f.providedIn = pin[1];
+  const sel = /selector\s*:\s*['"`]([^'"`]+)['"`]/.exec(src);
+  if (sel && ['component', 'directive'].includes(f.kind)) f.selector = sel[1];
+  const pipe = /@Pipe\(\s*\{[^}]*name\s*:\s*['"]([^'"]+)['"]/.exec(src);
+  if (pipe) f.selector = pipe[1];
+  if (f.kind === 'component' || f.kind === 'directive') {
+    const prov = /providers\s*:\s*\[([\s\S]*?)\]/.exec(src);
+    if (prov) {
+      const names = new Set(prov[1].match(/\b[A-Z][\w$]*\b/g) || []);
+      f.providerSpecs = [];
+      for (const m of src.matchAll(/import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+        const imported = m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean);
+        if (imported.some((n) => names.has(n))) f.providerSpecs.push(m[2]);
+      }
+    }
+  }
+  if (f.kind === 'routes' || /routes?\.ts$/.test(name)) {
+    f.routes = [];
+    for (const m of src.matchAll(/path\s*:\s*['"]([^'"]*)['"]([\s\S]*?)(?=path\s*:|$)/g)) {
+      const body = m[2];
+      const lazy = /(loadChildren|loadComponent)\s*:\s*\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]/.exec(body);
+      const eager = /component\s*:\s*([A-Za-z0-9_]+)/.exec(body);
+      const redirect = /redirectTo\s*:\s*['"]([^'"]*)['"]/.exec(body);
+      f.routes.push({ path: m[1], lazy: lazy ? [lazy[1], lazy[2]] : null, eager: eager ? eager[1] : null, redirect: redirect ? redirect[1] : null });
+    }
+  }
+  return f;
+}
+
 function scanAngular() {
 const allTs = walk(ROOT);
+KNOWN_TS = new Set(allTs);
 const files = [];
 const externals = new Map();
+const facts = new Map();
 for (const abs of allTs) {
   const p = rel(abs);
   if (matchAny(config.ignore, p)) continue;
-  const src = stripTsComments(fs.readFileSync(abs, 'utf8'));
   const name = path.basename(abs);
-  const entry = { path: p, kind: kindOf(name, src), name: shortName(name), imports: [] };
-  const decl = (src.match(/@(Component|Directive|Pipe|Injectable|NgModule)\s*\(/g) || []).length;
-  if (decl > 1) entry.declarations = decl;
-  const pin = /providedIn\s*:\s*['"](\w+)['"]/.exec(src);
-  if (pin) entry.providedIn = pin[1];
-  const sel = /selector\s*:\s*['"`]([^'"`]+)['"`]/.exec(src);
-  if (sel && ['component', 'directive'].includes(entry.kind)) entry.selector = sel[1];
-  const pipe = /@Pipe\(\s*\{[^}]*name\s*:\s*['"]([^'"]+)['"]/.exec(src);
-  if (pipe) entry.selector = pipe[1];
-  for (const spec of parseImports(src)) {
+  let f = CACHE && CACHE.get(abs);
+  if (!f) { f = angularFacts(name, stripTsComments(fs.readFileSync(abs, 'utf8'))); if (CACHE) CACHE.set(abs, f); }
+  facts.set(p, f);
+  const entry = { path: p, kind: f.kind, name: shortName(name), imports: [] };
+  for (const k of ['declarations', 'providedIn', 'selector']) if (f[k] !== undefined) entry[k] = f[k];
+  for (const spec of f.specs) {
     const r = resolveImport(abs, spec);
     if (r.file) {
       const target = rel(r.file);
@@ -279,22 +347,16 @@ for (const abs of allTs) {
       externals.set(r.external, (externals.get(r.external) || 0) + 1);
     }
   }
-  entry.imports.sort();
-  entry._src = src;
+  entry.imports = [...new Set(entry.imports)].sort();
   files.push(entry);
 }
 files.sort((a, b) => a.path.localeCompare(b.path));
 const testCount = allTs.filter((f) => f.endsWith('.spec.ts')).length;
 // Services provided by a component (providers: [X]) are component-scoped: they belong next to that component.
 const byPathA = new Map(files.map((f) => [f.path, f]));
-for (const f of files.filter((x) => x.kind === 'component' || x.kind === 'directive')) {
-  const prov = /providers\s*:\s*\[([\s\S]*?)\]/.exec(f._src);
-  if (!prov) continue;
-  const names = new Set(prov[1].match(/\b[A-Z][\w$]*\b/g) || []);
-  for (const m of f._src.matchAll(/import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
-    const imported = m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean);
-    if (!imported.some((n) => names.has(n))) continue;
-    const r = resolveImport(path.join(ROOT, f.path), m[2]);
+for (const f of files) {
+  for (const spec of facts.get(f.path).providerSpecs || []) {
+    const r = resolveImport(path.join(ROOT, f.path), spec);
     const target = r.file && byPathA.get(rel(r.file));
     if (target) target.scopedTo = f.path;
   }
@@ -302,20 +364,15 @@ for (const f of files.filter((x) => x.kind === 'component' || x.kind === 'direct
 
 // ---------- routes ----------
 const routes = [];
-for (const f of files.filter((x) => x.kind === 'routes' || /routes?\.ts$/.test(x.path))) {
-  const rx = /path\s*:\s*['"]([^'"]*)['"]([\s\S]*?)(?=path\s*:|$)/g;
-  for (const m of f._src.matchAll(rx)) {
-    const body = m[2];
-    const lazy = /(loadChildren|loadComponent)\s*:\s*\(\)\s*=>\s*import\(\s*['"]([^'"]+)['"]/.exec(body);
-    const eager = /component\s*:\s*([A-Za-z0-9_]+)/.exec(body);
-    const redirect = /redirectTo\s*:\s*['"]([^'"]*)['"]/.exec(body);
+for (const f of files) {
+  for (const r0 of facts.get(f.path).routes || []) {
     let target = null;
-    if (lazy) {
-      const r = resolveImport(path.join(ROOT, f.path), lazy[2]);
-      target = `${lazy[1] === 'loadChildren' ? 'lazy routes' : 'lazy component'}: ${r.file ? rel(r.file) : lazy[2]}`;
-    } else if (eager) target = `component: ${eager[1]}`;
-    else if (redirect) target = `redirect -> /${redirect[1]}`;
-    if (target) routes.push({ file: f.path, path: m[1] === '' ? '(empty)' : m[1], target });
+    if (r0.lazy) {
+      const r = resolveImport(path.join(ROOT, f.path), r0.lazy[1]);
+      target = `${r0.lazy[0] === 'loadChildren' ? 'lazy routes' : 'lazy component'}: ${r.file ? rel(r.file) : r0.lazy[1]}`;
+    } else if (r0.eager) target = `component: ${r0.eager}`;
+    else if (r0.redirect !== null) target = `redirect -> /${r0.redirect}`;
+    if (target) routes.push({ file: f.path, path: r0.path === '' ? '(empty)' : r0.path, target });
   }
 }
 return { files, externals, routes, testCount };
@@ -324,7 +381,7 @@ return { files, externals, routes, testCount };
 let scan, PLURAL, SINGULAR, TOTAL_KINDS;
 if (SPRING) {
   const J = await import('./java.mjs');
-  scan = J.scanSpring({ ROOT, scanRoot: path.resolve(config.scanRoot || '.'), config, matchAny });
+  scan = J.scanSpring({ ROOT, scanRoot: path.resolve(config.scanRoot || '.'), config, matchAny, cache: CACHE });
   PLURAL = J.SPRING_PLURAL; SINGULAR = J.SPRING_SINGULAR; TOTAL_KINDS = J.SPRING_TOTALS;
 } else {
   scan = scanAngular();
@@ -337,6 +394,7 @@ if (SPRING) {
   TOTAL_KINDS = ['component', 'service', 'routes', 'guard', 'interceptor', 'pipe', 'directive', 'store', 'model'];
 }
 const { files, externals, routes, testCount } = scan;
+if (CACHE) CACHE.save();
 const fileByPath = new Map(files.map((f) => [f.path, f]));
 
 // ---------- areas (units) and their dependencies ----------
@@ -426,9 +484,68 @@ for (const rule of config.rules) {
   }
 }
 
+// ---------- rules from other tools: Nx module boundaries, ArchUnit ----------
+const EXT = { nx: { active: false }, arch: { active: false } };
+{
+  const X = await import('./rules-ext.mjs');
+  try {
+    if (!SPRING) EXT.nx = await X.nxViolations({ ROOT, cwd: process.cwd(), files, mode: config.nx });
+    else EXT.arch = X.archUnitViolations({ files, scanRoot: path.resolve(config.scanRoot || '.'), mode: config.archunit, walkJava: (await import('./java.mjs')).walkJava });
+  } catch (e) { if (!QUIET && !SESSION) console.warn(`! Reading Nx/ArchUnit rules failed: ${e.message}`); }
+  for (const r of [EXT.nx, EXT.arch]) if (r.active) violations.push(...r.violations);
+  if (EXT.nx.note && !QUIET && !SESSION && MODE !== 'json') console.warn(`! ${EXT.nx.note}`);
+}
+
+// ---------- fix suggestions for placement issues ----------
+// The best allowed folder for a misplaced file: an existing folder that holds most of what the file uses and what uses
+// it, near the file. Shown in reports, the hook, and as a "Fix" button in the graph (move-cli --fix).
+{
+  const importedBy = new Map();
+  for (const f of files) for (const t of f.imports) { if (!importedBy.has(t)) importedBy.set(t, []); importedBy.get(t).push(f.path); }
+  const dirExists = (d) => { try { return fs.statSync(path.join(ROOT, d)).isDirectory(); } catch { return false; } };
+  const candidatesFor = (filePath, patterns) => {
+    const segs = filePath.split('/').slice(0, -1);
+    const out = new Set();
+    for (const pat of asList(patterns)) {
+      const ps = pat.split('/');
+      if (pat.startsWith('**/')) {
+        // nearest existing folder with that name, from the file's folder upwards
+        const rest = ps.slice(1).join('/');
+        for (let i = segs.length; i >= 0; i--) { const c = [...segs.slice(0, i), rest].join('/'); if (dirExists(c)) { out.add(c); break; } }
+        if (!segs.length || ![...out].some((c) => c.endsWith(rest))) out.add([...segs, rest].join('/'));
+        continue;
+      }
+      if (ps.includes('**')) continue;
+      if (ps.every((x) => x !== '*')) { out.add(pat); continue; }
+      // fill '*' from the file's own path (features/*/data-access → features/customers/data-access)
+      const filled = ps.map((x, i) => (x === '*' ? segs[i] : x));
+      if (filled.every(Boolean) && ps.every((x, i) => x === '*' || x === segs[i] || i > 0)) out.add(filled.join('/'));
+      // and every existing folder that fits the pattern
+      const rx = globToRegex(pat);
+      for (const d of new Set(files.map((f) => f.path.split('/').slice(0, ps.length).join('/')))) if (d.split('/').length === ps.length && rx.test(d) && dirExists(d)) out.add(d);
+    }
+    return [...out];
+  };
+  for (const v of violations) {
+    const rule = config.rules.find((r) => r.name === v.rule);
+    if (!rule || rule.type !== 'placement' || !asList(rule.allowedIn).length) continue;
+    const f = fileByPath.get(v.file);
+    const related = [...(f?.imports || []), ...(importedBy.get(v.file) || [])];
+    let best = null;
+    for (const c of candidatesFor(v.file, rule.allowedIn)) {
+      if (!matchAny(rule.allowedIn, `${c}/${path.posix.basename(v.file)}`)) continue;
+      const inside = related.filter((r) => r === c || r.startsWith(c + '/')).length;
+      const common = (() => { const a = v.file.split('/'), b = c.split('/'); let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; })();
+      const score = (dirExists(c) ? 1000 : 0) + inside * 10 + common;
+      if (!best || score > best.score) best = { target: c, exists: dirExists(c), score };
+    }
+    if (best) v.fix = { target: best.target, create: !best.exists };
+  }
+}
+
 // ---------- Sheriff (Angular): the project's own module rules as an extra source ----------
 const SHERIFF = { active: false, note: '' };
-if (!SPRING && config.sheriff !== false) {
+if (!SPRING && config.sheriff !== false && !HOOK) {
   const cfgFile = ['sheriff.config.ts', 'sheriff.config.js', 'sheriff.config.mjs'].map((f) => path.resolve(f)).find((f) => fs.existsSync(f));
   if (cfgFile || config.sheriff === true) {
     let bin = null;
@@ -560,6 +677,31 @@ md.push('');
 md.push(`Root: \`${config.root}\` · ${SPRING ? 'Spring Boot (Java)' : 'Angular'} · ${files.length} source files · ${testCount} ${SPRING ? 'test' : 'spec'} files`);
 md.push(totals ? `Contains: ${totals}` : '');
 md.push('');
+// Split view (big repositories): the overview lists areas; each area has its own detail file.
+const SPLIT = config.split === true || (config.split !== false && files.length > (config.splitAbove ?? 1500));
+const areaSlug = (u) => (u === '(root)' ? '_root' : u.replace(/[\\/]+/g, '--').replace(/[^\w.-]/g, '_'));
+const filesByArea = new Map();
+for (const f of files) { const u = unitOf(f.path); if (!filesByArea.has(u)) filesByArea.set(u, []); filesByArea.get(u).push(f); }
+const usedBy = new Map();
+for (const [u, deps] of unitDeps) for (const d of deps) { if (!usedBy.has(d)) usedBy.set(d, new Set()); usedBy.get(d).add(u); }
+const kindCounts = (fs_) => countsOnly(fs_).split(', ').slice(0, 4).join(', ');
+if (SPLIT) {
+  md.push('## Areas');
+  md.push('');
+  md.push(`> Split view (${files.length} files). This file is the overview. Before working in an area, read its detail file`);
+  md.push(`> (\`<this folder>/project-map-areas/<area>.md\`, local working tree: \`${config.output.local}/areas/<area>.md\`): folders, files, routes and issues of that area.`);
+  md.push('');
+  md.push('| Area | Purpose | Files | Mostly | Uses | Issues | Details |');
+  md.push('|---|---|---|---|---|---|---|');
+  for (const u of [...filesByArea.keys()].sort()) {
+    const fs_ = filesByArea.get(u);
+    const ann = annotationFor(u);
+    const deps = [...(unitDeps.get(u) || [])].sort();
+    const iss = violations.filter((v) => unitOf(v.file) === u).length;
+    md.push(`| ${u} | ${ann?.purpose || ''} | ${fs_.length} | ${kindCounts(fs_)} | ${deps.slice(0, 6).join(', ')}${deps.length > 6 ? ` +${deps.length - 6}` : ''} | ${iss || ''} | project-map-areas/${areaSlug(u)}.md |`);
+  }
+  md.push('');
+} else {
 md.push('## Structure');
 md.push('');
 if (COMPACT) {
@@ -569,7 +711,8 @@ if (COMPACT) {
 }
 md.push(...treeLines);
 md.push('');
-if (routes.length) {
+}
+if (routes.length && !SPLIT) {
   md.push(SPRING ? '## HTTP endpoints and listeners' : '## Routes');
   md.push('');
   md.push(SPRING ? '| Endpoint | Handler | Defined in |' : '| Path | Target | Defined in |');
@@ -589,18 +732,20 @@ if (COMPACT && depLines.length > 80) {
   md.push(`- …and ${depLines.length - 80} more areas (see the .json).`);
 } else md.push(...depLines);
 md.push('');
-if (config.rules.length || SHERIFF.active) {
+if (config.rules.length || SHERIFF.active || EXT.nx.active || EXT.arch.active) {
   md.push('## Rules');
   md.push('');
   for (const r of config.rules) md.push(`- **${r.name}** (${r.severity || 'error'}): ${r.message || ''}`);
   if (SHERIFF.active) md.push('- **sheriff:encapsulation**, **sheriff:dependency-rule** (error): module rules from `sheriff.config.ts`, checked by Sheriff.');
+  if (EXT.nx.active) md.push(`- **nx:module-boundaries** (error): \`depConstraints\` of \`@nx/enforce-module-boundaries\` (${EXT.nx.constraints} constraints, ${EXT.nx.projects} projects).`);
+  if (EXT.arch.active) md.push(`- **archunit:…** (error): ${EXT.arch.rules} package rule(s) from ArchUnit tests.`);
   md.push('');
 }
 md.push(`## Violations (${violations.length})`);
 md.push('');
 if (!violations.length) md.push('None.');
-const shownViolations = COMPACT ? violations.slice(0, 100) : violations;
-for (const v of shownViolations) md.push(`- ${v.severity === 'error' ? '✗' : '!'} \`${v.file}\` ${v.detail} — ${v.rule}`);
+const shownViolations = SPLIT ? violations.slice(0, 50) : COMPACT ? violations.slice(0, 100) : violations;
+for (const v of shownViolations) md.push(`- ${v.severity === 'error' ? '✗' : '!'} \`${v.file}\` ${v.detail} — ${v.rule}${v.fix ? ` (fix: move to \`${v.fix.target}/\`)` : ''}`);
 if (shownViolations.length < violations.length) md.push(`- …and ${violations.length - shownViolations.length} more (see the .json).`);
 md.push('');
 const topExternals = [...externals].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k]) => k);
@@ -611,6 +756,57 @@ if (topExternals.length) {
   md.push('');
 }
 const markdown = md.join('\n');
+
+// one detail file per area (split view)
+function areaMarkdown(u) {
+  const fs_ = filesByArea.get(u) || [];
+  const ann = annotationFor(u);
+  const L = [`# Area ${u}`, '', `> Part of the project map (${TOOL_VERSION}). Generated; do not edit.`, ''];
+  if (ann?.purpose) L.push(`Purpose: ${ann.purpose}${ann.owner ? ` (owner: ${ann.owner})` : ''}`, '');
+  L.push(`${fs_.length} files · ${countsOnly(fs_)}`);
+  L.push(`Uses: ${[...(unitDeps.get(u) || [])].sort().join(', ') || '(nothing)'}`);
+  L.push(`Used by: ${[...(usedBy.get(u) || [])].sort().join(', ') || '(nothing)'}`, '');
+  L.push('## Structure', '');
+  const sub = { name: '', folders: new Map(), files: [] };
+  for (const f of fs_) {
+    let node = sub;
+    for (const part of f.path.split('/').slice(0, -1)) {
+      if (!node.folders.has(part)) node.folders.set(part, { name: part, folders: new Map(), files: [] });
+      node = node.folders.get(part);
+    }
+    node.files.push(f);
+  }
+  const walkSub = (node, prefix, depth) => {
+    for (let child of [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+      let full = prefix ? `${prefix}/${child.name}` : child.name, label = child.name;
+      while (!child.files.length && child.folders.size === 1) { child = [...child.folders.values()][0]; full += `/${child.name}`; label += `/${child.name}`; }
+      const a = annotationFor(full);
+      const sm = summarize(child.files);
+      L.push(`${'  '.repeat(depth)}- ${label}/${a?.purpose ? ` — ${a.purpose}` : ''}${sm ? ` · ${sm}` : ''}`);
+      walkSub(child, full, depth + 1);
+    }
+  };
+  if (sub.files.length) L.push(`- ./ · ${summarize(sub.files)}`);
+  walkSub(sub, '', 0);
+  L.push('');
+  const rs = routes.filter((r) => unitOf(r.file) === u);
+  if (rs.length) {
+    L.push(SPRING ? '## HTTP endpoints and listeners' : '## Routes', '', SPRING ? '| Endpoint | Handler | Defined in |' : '| Path | Target | Defined in |', '|---|---|---|');
+    for (const r of rs) L.push(`| ${r.path} | ${r.target} | ${r.file} |`);
+    L.push('');
+  }
+  const vs = violations.filter((v) => unitOf(v.file) === u);
+  L.push(`## Rule issues (${vs.length})`, '');
+  if (!vs.length) L.push('None.');
+  for (const v of vs) L.push(`- ${v.severity === 'error' ? '✗' : '!'} \`${v.file}\` ${v.detail} — ${v.rule}${v.fix ? ` (fix: move to \`${v.fix.target}/\`)` : ''}`);
+  return L.join('\n') + '\n';
+}
+function writeAreas(dir) {
+  fs.rmSync(dir, { recursive: true, force: true });
+  if (!SPLIT) return;
+  fs.mkdirSync(dir, { recursive: true });
+  for (const u of filesByArea.keys()) fs.writeFileSync(path.join(dir, `${areaSlug(u)}.md`), areaMarkdown(u));
+}
 
 const data = {
   root: config.root,
@@ -625,7 +821,8 @@ const data = {
   violations,
 };
 const json = JSON.stringify(data, null, 2) + '\n';
-const fmt = (v) => `  ${v.severity === 'error' ? '✗' : '!'} ${v.file} ${v.detail}\n    ${v.rule}: ${v.message || ''}`;
+const fixLine = (v) => (v.fix ? `\n    fix: node scripts/project-map/move-cli.mjs ${v.file} ${v.fix.target}${v.fix.create ? ' --create' : ''}` : '');
+const fmt = (v) => `  ${v.severity === 'error' ? '✗' : '!'} ${v.file} ${v.detail}\n    ${v.rule}: ${v.message || ''}${fixLine(v)}`;
 const log = (...a) => { if (!QUIET && !SESSION) console.log(...a); };
 
 // ---------- internal: map of another tree, used for the merge-base ----------
@@ -638,6 +835,7 @@ if (MODE === 'main') {
   fs.mkdirSync(path.dirname(jsonOut), { recursive: true });
   fs.writeFileSync(mdOut, markdown);
   fs.writeFileSync(jsonOut, json);
+  writeAreas(path.resolve(AREAS_DIR));
   log(`✓ Wrote the main map: ${config.output.markdown} and ${config.output.json}`);
   log(`  ${files.length} files · ${routes.length} ${SPRING ? 'endpoints' : 'routes'} · ${unitDeps.size} areas · ${violations.length} violations`);
   if (violations.length && !QUIET) console.log(violations.map(fmt).join('\n'));
@@ -660,8 +858,11 @@ if (MODE === 'main') {
 const LOCAL = path.resolve(config.output.local);
 fs.mkdirSync(LOCAL, { recursive: true });
 fs.writeFileSync(path.join(LOCAL, '.gitignore'), '# Generated by project-map. Local only, never committed.\n*\n');
-fs.writeFileSync(path.join(LOCAL, 'PROJECT_MAP.md'), markdown.replace('# Project map', '# Project map (local working tree)'));
-fs.writeFileSync(path.join(LOCAL, 'project-map.json'), json);
+if (!HOOK) {
+  fs.writeFileSync(path.join(LOCAL, 'PROJECT_MAP.md'), markdown.replace('# Project map', '# Project map (local working tree)'));
+  fs.writeFileSync(path.join(LOCAL, 'project-map.json'), json);
+  writeAreas(path.join(LOCAL, 'areas'));
+}
 
 const posix = (p) => p.split(path.sep).join('/');
 function git(a, opts = {}) {
@@ -817,6 +1018,21 @@ function branchMarkdown(r) {
   if (!r.added.length && !r.moved.length && !r.deleted.length && !r.modified.length && !r.newIssues.length && !r.fixedIssues.length) L.push('No changes compared with main.', '');
   return L.join('\n');
 }
+if (HOOK) {
+  const me = rel(path.resolve(HOOK_FILE));
+  const mine = (report.available ? report.newIssues : violations).filter((v) => v.file === me);
+  if (!mine.length) process.exit(0);
+  const lines = [`project-map: ${me} breaks ${mine.length === 1 ? 'a structure rule' : `${mine.length} structure rules`}${report.available ? ' (new on this branch)' : ''}:`];
+  for (const v of mine) {
+    lines.push(`- ${v.detail} (${v.rule}${v.severity === 'warn' ? ', warning' : ''}): ${v.message || ''}`);
+    if (v.fix) lines.push(`  Fix: node scripts/project-map/move-cli.mjs ${v.file} ${v.fix.target}${v.fix.create ? ' --create' : ''}  (dry run; then add --apply)`);
+  }
+  lines.push(mine.some((v) => v.severity !== 'warn')
+    ? 'Fix this now (move the file with move-cli.mjs or change the import) unless the user asked for it this way; the rule check fails otherwise.'
+    : 'Warnings only: fix them if it is easy, otherwise mention them in your summary.');
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PostToolUse', additionalContext: lines.join('\n') } }) + '\n');
+  process.exit(0);
+}
 fs.writeFileSync(path.join(LOCAL, 'BRANCH_CHANGES.md'), branchMarkdown(report));
 fs.writeFileSync(path.join(LOCAL, 'branch.json'), JSON.stringify(report, null, 2) + '\n');
 
@@ -841,15 +1057,42 @@ if (SESSION) {
   process.exit(0);
 }
 
+// Pull-request comment: what this branch changes in the structure (CI posts it; see templates/ci)
+function prComment(r, failing) {
+  const L = ['<!-- project-map -->', '### Project map: structure changes in this branch', ''];
+  if (!r.available) { L.push(`No comparison with ${config.baseBranch} available (${r.note || 'no main map'}).`); return L.join('\n') + '\n'; }
+  const bits = [`${r.added.length} added`, `${r.moved.length} moved`, `${r.deleted.length} deleted`, `${r.modified.length} modified`];
+  L.push(`${bits.join(' · ')} · rule issues: **${r.newIssues.length} new**, ${r.fixedIssues.length} fixed, ${r.existingIssues} existing on ${config.baseBranch}`, '');
+  const list = (title, items, max = 15) => {
+    if (!items.length) return;
+    L.push(`**${title}**`, '', ...items.slice(0, max));
+    if (items.length > max) L.push(`- …and ${items.length - max} more`);
+    L.push('');
+  };
+  list(failing ? 'New rule issues (the check fails)' : 'New rule issues', r.newIssues.map((v) => `- ${v.severity === 'error' ? '❌' : '⚠️'} \`${v.file}\` ${v.detail} (${v.rule})${v.fix ? `. Fix: \`node scripts/project-map/move-cli.mjs ${v.file} --fix --apply\`` : ''}`));
+  list('Fixed rule issues', r.fixedIssues.map((v) => `- ✅ \`${v.file}\` ${v.detail} (${v.rule})`));
+  list('Moved', groupMoves(r.moved).map((x) => `- ${x}`));
+  list('New folders', r.foldersAdded.map((x) => `- \`${x}/\``));
+  list('New dependencies between areas', r.areaAdded.map((x) => `- ${x}`));
+  list('Removed dependencies between areas', r.areaRemoved.map((x) => `- ${x}`));
+  if (!r.moved.length && !r.foldersAdded.length && !r.areaAdded.length && !r.areaRemoved.length && !r.newIssues.length && !r.fixedIssues.length) L.push('No structural changes: no moves, no new folders or dependencies between areas, no rule changes.', '');
+  L.push(`<sub>project-map ${TOOL_VERSION} · compared with ${r.source === 'merge-base' ? `${r.base} at ${r.mergeBase}` : 'the committed main map'}</sub>`);
+  return L.join('\n') + '\n';
+}
+
 if (CHECK) {
   const strict = args.includes('--strict');
   const r = report;
+  if (argVal('--pr-comment')) {
+    const failingNow = (strict || !r.available ? violations : r.newIssues || []).filter((v) => v.severity === 'error').length > 0;
+    fs.writeFileSync(argVal('--pr-comment'), prComment(r, failingNow));
+  }
   const failing = strict || !r.available ? violations.filter((v) => v.severity === 'error')
     : r.newIssues.filter((v) => v.severity === 'error');
   const against = r.available ? (r.source === 'merge-base' ? `${r.base} (branch point ${r.mergeBase})` : config.output.json) : 'nothing (no main map found)';
   console.log(`Rule check against ${against}${strict ? ', strict' : ''}: ${files.length} files.`);
   if (!r.available) console.log(`  Note: ${r.note || 'no base map'}. All rule issues count. In CI, check out with full history (fetch-depth: 0).`);
-  for (const v of r.newIssues || []) console.log(`  ✗ new: ${v.file} ${v.detail}\n      ${v.rule}: ${v.message || ''}`);
+  for (const v of r.newIssues || []) console.log(`  ✗ new: ${v.file} ${v.detail}\n      ${v.rule}: ${v.message || ''}${fixLine(v).replace('\n    ', '\n      ')}`);
   for (const v of r.fixedIssues || []) console.log(`  ✓ fixed: ${v.file} ${v.detail} (${v.rule})`);
   if (r.available && r.existingIssues && !strict) console.log(`  · ${r.existingIssues} existing issue(s) on main, not blocking.`);
   if (strict) for (const v of failing) console.log(`  ✗ ${v.file} ${v.detail}\n      ${v.rule}: ${v.message || ''}`);

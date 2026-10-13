@@ -23,9 +23,18 @@ steps:
     inputs:
       versionSpec: '22.x'
 
-  - script: node scripts/project-map/generate-map.mjs --check
-    displayName: Project map check (only new issues fail)
+  - script: |
+      status=0
+      node scripts/project-map/generate-map.mjs --check --pr-comment project-map-comment.md || status=$?
+      # comment on the pull request (the build identity needs "Contribute to pull requests")
+      node -e 'process.stdout.write(JSON.stringify({ comments: [{ parentCommentId: 0, content: require("fs").readFileSync("project-map-comment.md", "utf8"), commentType: 1 }], status: "closed" }))' > pm-thread.json
+      curl -s -o /dev/null -X POST -H "Authorization: Bearer $SYSTEM_ACCESSTOKEN" -H "Content-Type: application/json" --data @pm-thread.json \
+        "$(System.CollectionUri)$(System.TeamProject)/_apis/git/repositories/$(Build.Repository.ID)/pullRequests/$(System.PullRequest.PullRequestId)/threads?api-version=7.1" || true
+      exit $status
+    displayName: Project map check (only new issues fail) and PR comment
     condition: eq(variables['Build.Reason'], 'PullRequest')
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
 
   - script: |
       node scripts/project-map/generate-map.mjs --main

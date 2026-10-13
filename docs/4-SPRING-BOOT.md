@@ -228,7 +228,7 @@ constructor injection, Maven/Gradle test commands, the decisions to ask about.
 ```bash
 cp -r sample-spring-app /tmp/spring && cd /tmp/spring
 git init -q -b main && git add -A && git commit -qm sample
-mkdir -p scripts/project-map && cp <kit>/skill/project-map/scripts/* scripts/project-map/
+mkdir -p scripts/project-map && cp -r <kit>/skill/project-map/scripts/. scripts/project-map/
 cp <kit>/skill/project-map/templates/project-map.config.spring.mjs project-map.config.mjs
 node scripts/project-map/generate-map.mjs --main
 ```

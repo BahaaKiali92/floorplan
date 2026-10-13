@@ -60,6 +60,8 @@ Two layers: `docs/PROJECT_MAP.md` is the structure of **main** (committed, regen
 
 When `docs/PROJECT_MAP.md` exists and you create, move, rename or delete files:
 - Put new files where the folder (package) purposes and rules in the map say they belong.
+- If a hook reports that a file you wrote breaks a rule, fix it right away: `node scripts/project-map/move-cli.mjs <file> --fix`
+  (dry run; then `--apply`) moves it to the suggested folder, or change the import.
 - Move files with `node scripts/project-map/move-cli.mjs <source> <target-folder>` (dry run), then the same with `--apply`.
   Never move files by hand. Angular: the tool also moves `.html/.scss/.spec.ts` and rewrites every import.
   Spring: it changes package declarations, rewrites imports (also implicit same-package use) and moves the tests along.

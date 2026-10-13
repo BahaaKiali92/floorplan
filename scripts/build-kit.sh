@@ -16,5 +16,6 @@ rsync -a --exclude node_modules --exclude .project-map --exclude docs --exclude 
   || (mkdir -p "$OUT/sample-app" && cp -r sample-app/src sample-app/angular.json sample-app/package.json sample-app/tsconfig.json "$OUT/sample-app/")
 cp -r sample-spring-app "$OUT/sample-spring-app"
 cp -r tests/java-stubs "$OUT/java-stubs"
+cp -r experiments "$OUT/experiments" && rm -rf "$OUT/experiments/results"
 (cd dist && zip -qr project-map-kit.zip project-map-kit)
 echo "✓ dist/project-map-kit.zip ($(du -h dist/project-map-kit.zip | cut -f1))"
