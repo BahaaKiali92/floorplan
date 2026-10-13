@@ -810,6 +810,28 @@ printf "export default { presets: ['angular-feature-sliced'], eslint: false };\n
 out=$($G --main 2>&1)
 if grep -q "could not load eslint" <<<"$out"; then bad "eslint: false still reads ESLint"; else ok "eslint: false skips the ESLint config"; fi
 
+echo "== 27. Placement by the project's convention (services in data-access, services, facades…)"
+PC=$TMP/convention
+cp -r "$REPO/sample-app" "$PC" && cd "$PC" || { bad "fixture $PC"; exit 1; }
+rm -rf node_modules; mkdir -p scripts/floorplan && cp -r "$TOOLS"/. scripts/floorplan/
+printf "export default { presets: ['angular-feature-sliced'] };\n" > floorplan.config.mjs
+G="node scripts/floorplan/generate-map.mjs"
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "Services live in core/ or features/<name>/data-access/ (this project's convention: 2 of 3)" "data-access detected as the convention"
+has "$out" "customer-export.service.ts\` must be in core or features/*/data-access" "the misplaced service is reported against the convention"
+for f in customers orders; do mv src/app/features/$f/data-access src/app/features/$f/services; done
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "features/<name>/services/ (this project's convention" "services/ detected when the project uses it"
+has "$out" "(error, from preset angular-feature-sliced): Services live" "a clear convention stays an error"
+mv src/app/features/customers/services src/app/features/customers/facades
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "this project mixes services/ (1), facades/ (1)" "mixed folders named in the message"
+has "$out" "(warn, from preset angular-feature-sliced): Services live" "mixed convention: warning, not error"
+has "$out" "must be in core or a service folder of its area (services/, facades/)" "short detail for the mixed case"
+printf "export default { presets: ['angular-feature-sliced'], rules: [{ name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core', 'features/*/facades'] }] };\n" > floorplan.config.mjs
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "orders.service.ts\` must be in core or features/*/facades" "allowedIn without convention pins the folder"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

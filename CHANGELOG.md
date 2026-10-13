@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 (2026-10-13)
+
+- **`services-placement` follows the project's convention** instead of requiring `data-access/`. Teams call the folder
+  `data-access`, `services`, `facades`, `state`…: the name most services already use (70% or more) is the convention,
+  and the rule reports the services outside it ("Services live in core/ or features/<name>/services/ (this project's
+  convention: 23 of 25)"). Mixed projects get warnings that name the mix, so the team can pick one. New placement
+  option `convention: { in, folders, minShare }` (and `what` for the messages); an explicit `allowedIn` still pins
+  the folders. Used by the `angular-feature-sliced` preset and the template.
+
 ## 1.1.0 (2026-10-13)
 
 - **ESLint boundary rules are read, not duplicated.** `eslint-plugin-boundaries` (`boundaries/element-types` with its

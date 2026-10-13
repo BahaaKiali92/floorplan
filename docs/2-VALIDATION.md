@@ -68,6 +68,17 @@ Only imports between project files count (relative imports and tsconfig path ali
 | `allowedIn` | yes | pattern(s) where those files may live; `[]` means nowhere |
 | `except` | no | pattern(s) of files the rule skips |
 | `allowComponentScoped` | no | default `true`: a service listed in a component's `providers: [...]` and placed in the same folder as that component is accepted (it is component-scoped on purpose) |
+| `convention` | no | `{ in: 'features/*', folders: ['data-access', 'services', 'facades', …], minShare: 0.7 }`: the folder name isn't fixed, the project's own is used (see below) |
+| `what` | no | the files' name in the messages (`'Services'`) |
+
+**Placement by the project's convention.** Teams name the folder for a feature's services differently:
+`data-access/`, `services/`, `facades/`, `state/`… With `convention`, the rule counts where these files already live
+(directly under each area of `in`). The name that holds 70% or more of them (`minShare`) is the convention: it is
+added to `allowedIn`, the rule reports files outside it, and the map says so ("Services live in core/ or
+features/<name>/services/ (this project's convention: 23 of 25)"). If the names are mixed or none is used yet, every
+listed name is accepted, the rule becomes a warning and the message names the mix ("this project mixes data-access/
+(5), services/ (4)"), so the team can pick one. To pin a decision, drop `convention` and list the folders in
+`allowedIn`. The `angular-feature-sliced` preset and the template use this for `services-placement`.
 
 File kinds come from Angular naming: `*.component.ts`, `*.service.ts`, `*.routes.ts` / `*-routing.module.ts`,
 `*.guard.ts`, `*.interceptor.ts`, `*.resolver.ts`, `*.pipe.ts`, `*.directive.ts`,
@@ -254,8 +265,8 @@ rules: [
     message: 'Features must not import other features. Move shared code to shared/ or core/.' },
   { name: 'shared-has-no-feature-deps', type: 'noImport', from: 'shared', to: ['features', 'core'],
     message: 'shared/ must stay generic. It cannot depend on features or core.' },
-  { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core', 'features/*/data-access'],
-    message: 'Services belong in core/ (app-wide) or features/<name>/data-access/.' },
+  { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core'], what: 'Services',
+    convention: { in: 'features/*', folders: ['data-access', 'services', 'facades', 'facade', 'data', 'api', 'state', '+state', 'store', 'domain', 'infrastructure'] } },
   { name: 'no-components-in-core', type: 'placement', files: 'core', kinds: ['component'], allowedIn: [], severity: 'warn',
     message: 'core/ should not contain components. Use layout/ or shared/.' },
   // style guide (warnings): feature-public-api, file-names-kebab-case, one-angular-class-per-file; see above
@@ -453,7 +464,7 @@ Say yes to the automatic refresh; for CI choose "none" (the sample has no CI). E
   ✗ features/orders/order-detail/order-detail.component.ts imports features/customers/ui/customer-avatar/customer-avatar.component.ts
     features-are-isolated: Features must not import other features. Move shared code to shared/ or core/.
   ✗ features/customers/customer-list/customer-export.service.ts must be in core or features/*/data-access
-    services-placement: Services belong in core/ (app-wide) or features/<name>/data-access/.
+    services-placement: Services live in core/ or features/<name>/data-access/ (this project's convention: 2 of 3).
 ```
 
 and for the local map:

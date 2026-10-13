@@ -20,8 +20,10 @@ export default {
     { name: 'features-are-isolated', type: 'noImport', from: 'features/*', to: 'features/*', allowSame: true,
       message: 'Features must not import other features. Move shared code to shared/ or core/.',
       why: 'Isolated features can be changed, lazy loaded and deleted on their own.' },
-    { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core', 'features/*/data-access'],
-      message: 'Services belong in core/ (app-wide) or features/<name>/data-access/.' },
+    // services: core/ or one folder per feature. The folder name isn't fixed (data-access, services, facades, …):
+    // the one most services already use is the convention; mixed projects get a warning that names the mix.
+    { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core'], what: 'Services',
+      convention: { in: 'features/*', folders: ['data-access', 'services', 'facades', 'facade', 'data', 'api', 'state', '+state', 'store', 'domain', 'infrastructure'] } },
     { name: 'no-area-cycles', type: 'noCycles', message: 'Areas depend on each other in a circle.' },
     { name: 'lazy-features-stay-lazy', type: 'lazyBoundary', severity: 'warn' },
     { name: 'aliases-across-areas', type: 'relativeImports', maxUp: 2, severity: 'warn' },

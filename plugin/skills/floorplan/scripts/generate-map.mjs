@@ -724,7 +724,7 @@ function runRules(files, opts = {}) {
         if (rule.except && matchAny(rule.except, f.path)) continue;
         // a service provided by a component in the same folder is component-scoped: it belongs there
         if (rule.allowComponentScoped !== false && f.scopedTo && path.posix.dirname(f.scopedTo) === path.posix.dirname(f.path)) continue;
-        if (!matchAny(rule.allowedIn, f.path)) add(rule, { file: f.path, detail: `must be in ${asList(rule.allowedIn).join(' or ')}${nearMiss(f.path, rule.allowedIn)}` });
+        if (!matchAny(rule.allowedIn, f.path)) add(rule, { file: f.path, detail: rule._detail || `must be in ${asList(rule.allowedIn).join(' or ')}${nearMiss(f.path, rule.allowedIn)}` });
       }
     } else if (rule.type === 'naming') {
       const rx = rule.pattern ? new RegExp(rule.pattern) : { kebab: /^[a-z0-9]+(-[a-z0-9]+)*$/, camel: /^[a-z][a-zA-Z0-9]*$/, pascal: /^[A-Z][a-zA-Z0-9]*$/ }[rule.case || 'kebab'];
@@ -946,6 +946,45 @@ function runRules(files, opts = {}) {
     if (rule.docs) v.docs = rule.docs;
   }
   return out;
+}
+// ---------- placement by the project's own convention ----------
+// A placement rule with `convention: { in: 'features/*', folders: ['data-access', 'services', …] }` doesn't force one
+// folder name: projects call it data-access, services, facades, state… The folder that already holds most of these
+// files (70% or more) is the convention, and the rule checks that the rest follow it. Mixed or no convention: every
+// listed name is accepted, the rule reports as a warning and says which names are mixed. An explicit allowedIn
+// without `convention` pins the folders (e.g. after the team decided).
+for (const rule of config.rules) {
+  if (rule.type !== 'placement' || !rule.convention) continue;
+  const c = rule.convention, under = c.in || 'features/*', names = asList(c.folders);
+  const depth = under.split('/').length;
+  const counts = Object.fromEntries(names.map((n) => [n, 0]));
+  let total = 0;
+  for (const f of files) {
+    if (rule.kinds && !rule.kinds.includes(f.kind)) continue;
+    if (!matchAny(under, f.path) || (rule.except && matchAny(rule.except, f.path))) continue;
+    if (f.scopedTo && path.posix.dirname(f.scopedTo) === path.posix.dirname(f.path)) continue;
+    total++;
+    const seg = f.path.split('/')[depth];
+    if (seg in counts && f.path.split('/').length > depth + 1) counts[seg]++;
+  }
+  const inFolders = Object.values(counts).reduce((a, b) => a + b, 0);
+  const [top, n] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0] || [null, 0];
+  const what = rule.what || 'Files';
+  const base = asList(rule.allowedIn), own = !!rule.message;
+  if (n && n / inFolders >= (c.minShare ?? 0.7)) {
+    rule.allowedIn = [...base, `${under}/${top}`];
+    rule._convention = { folder: top, count: n, of: total };
+    if (!own) rule.message = `${what} live in ${base.map((b) => b + '/').join(' or ')}${base.length ? ' or ' : ''}${under.replace('*', '<name>')}/${top}/ (this project's convention: ${n} of ${total}).`;
+  } else {
+    rule.allowedIn = [...base, ...names.map((x) => `${under}/${x}`)];
+    const used = Object.entries(counts).filter(([, k]) => k).map(([k, v]) => `${k}/ (${v})`);
+    rule._convention = { folder: null, mixed: used };
+    rule._detail = `must be in ${base.length ? base.join(' or ') + ' or ' : ''}a ${what.toLowerCase().replace(/s$/, '')} folder of its area (${(used.length ? used.map((u) => u.split(' ')[0]) : names.slice(0, 3).map((x) => x + '/')).join(', ')}${used.length ? '' : ' …'})`;
+    if (rule.severity !== 'off') rule.severity = 'warn';
+    if (!own) rule.message = used.length
+      ? `${what} live in ${base.map((b) => b + '/').join(' or ')}${base.length ? ' or ' : ''}one folder per area; this project mixes ${used.join(', ')}. Pick one and set it in floorplan.config.mjs (allowedIn).`
+      : `${what} live in ${base.map((b) => b + '/').join(' or ')}${base.length ? ' or ' : ''}a folder per area (${names.join(', ')}, …); none is used yet.`;
+  }
 }
 let violations = runRules(files);
 

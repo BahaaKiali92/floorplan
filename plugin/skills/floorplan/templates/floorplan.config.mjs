@@ -98,10 +98,14 @@ export default {
       name: 'services-placement',
       type: 'placement',
       kinds: ['service'], // by kind, so it also works for Angular 20 file names without the .service suffix
-      allowedIn: ['core', 'features/*/data-access'],
+      allowedIn: ['core'],
+      what: 'Services',
+      // One folder per feature, but its name is the project's: the name most services already use (70% or more) is
+      // the convention and the rest must follow it. Mixed projects get warnings that name the mix. To pin it, drop
+      // `convention` and list the folders: allowedIn: ['core', 'features/*/data-access'].
+      convention: { in: 'features/*', folders: ['data-access', 'services', 'facades', 'facade', 'data', 'api', 'state', '+state', 'store', 'domain', 'infrastructure'] },
       // allowComponentScoped: true (default): a service listed in a component's `providers` and placed next to that
       // component is fine there. except: ['legacy/**'] skips files.
-      message: 'Services belong in core/ (app-wide) or features/<name>/data-access/.',
     },
     {
       name: 'no-components-in-core',

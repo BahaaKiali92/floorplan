@@ -50,6 +50,10 @@ Start from `<SKILL_DIR>/templates/floorplan.config.mjs` and adapt it:
    With boundaries or no-restricted-paths, the preset's import rules are switched off (the map says so); tell the
    user their ESLint config stays the source of truth for import boundaries, and don't add the same rules to
    `floorplan.config.mjs`.
+5b. **Where services live**: `services-placement` follows the project's own folder name (data-access, services,
+   facades, …; see the map's Rules section after the first run). If the map says the project mixes names, show the
+   counts and ask which one the team wants; then pin it: drop `convention` and set
+   `allowedIn: ['core', 'features/*/<name>']`. Never rename folders for this without asking.
 6. **Style-guide rules** (`file-names-kebab-case`, `one-angular-class-per-file`, `feature-public-api`, the commented
    `specs-next-to-code`): they start as warnings. Run a first map with them and show how many each finds; keep the
    ones the team wants.
