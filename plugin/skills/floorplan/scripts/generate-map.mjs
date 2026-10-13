@@ -1520,7 +1520,11 @@ const repoRoot = (() => { const r = gitText(['rev-parse', '--show-toplevel']); r
 function baseFromMergeBase(mb) {
   // Generate the map of the merge-base tree with the CURRENT config, so only code changes count. Cached per merge-base.
   const cfgText = fs.existsSync(configPath) ? fs.readFileSync(configPath, 'utf8') : '';
-  const key = crypto.createHash('sha1').update(mb + '\0' + cfgText).digest('hex');
+  // the CLAUDE.md rules count like the config: the current ones are applied to the branch point too, so only code
+  // changes show up as new issues
+  const claudeRulesPath = path.resolve(CLAUDE_RULES.file);
+  const claudeRulesText = fs.existsSync(claudeRulesPath) ? fs.readFileSync(claudeRulesPath, 'utf8') : '';
+  const key = crypto.createHash('sha1').update(mb + '\0' + cfgText + '\0' + claudeRulesText).digest('hex');
   const cacheFile = path.join(LOCAL, 'base-cache.json');
   try { const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); if (c.key === key) return c.data; } catch { /* rebuild */ }
   const projRel = posix(path.relative(repoRoot, realPath(process.cwd())));
@@ -1540,6 +1544,7 @@ function baseFromMergeBase(mb) {
       fs.mkdirSync(cwdTmp, { recursive: true });
       const cfgCopy = path.join(cwdTmp, path.basename(configPath));
       if (cfgText) fs.writeFileSync(cfgCopy, cfgText);
+      if (claudeRulesText) { const to = path.join(cwdTmp, CLAUDE_RULES.file); fs.mkdirSync(path.dirname(to), { recursive: true }); fs.writeFileSync(to, claudeRulesText); }
       // Sheriff and TypeScript come from the project's node_modules
       if (SHERIFF.active && fs.existsSync(path.resolve('node_modules')) && !fs.existsSync(path.join(cwdTmp, 'node_modules'))) {
         try { fs.symlinkSync(path.resolve('node_modules'), path.join(cwdTmp, 'node_modules'), 'junction'); } catch { /* without it Sheriff is skipped in the base map */ }

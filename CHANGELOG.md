@@ -19,6 +19,8 @@
 - Windows: Java moves keep CRLF line endings (inserted imports used LF; undo couldn't restore the file exactly); the
   branch report finds the branch point when the working folder is a short 8.3 path (C:\\Users\\RUNNER~1); the map of
   main is extracted without an absolute `tar -C` path. Found by the first Windows CI run.
+- The branch point is checked with the current CLAUDE.md rules too, so existing CLAUDE.md issues don't show up as new
+  on every branch.
 - Plugin ready for the marketplace: README in the plugin, `claude plugin validate --strict` clean, skill frontmatter
   accepted by claude.ai uploads; setup can commit the skill into the repository for cloud sessions.
 

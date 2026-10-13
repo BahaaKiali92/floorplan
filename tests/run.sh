@@ -690,6 +690,9 @@ out=$(printf '{"tool_input":{"file_path":"%s"},"cwd":"%s"}' "$(npath "$CM")/src/
 has "$out" "src/app/features/orders/order-notes/order-notes.component.ts:3: contains the any type (claude-md:no-any, warning; from CLAUDE.md:4" "hook: file:line and CLAUDE.md source"
 has "$out" "How to fix: Use a real type" "hook: how to fix"
 has "$out" "These come from the project's CLAUDE.md" "hook: CLAUDE.md warnings are to be fixed"
+out=$($G --check 2>&1)
+has "$out" "new: src/app/features/orders/order-notes/order-notes.component.ts" "check: the branch's own CLAUDE.md issue is new"
+if grep -q "new: src/app/app.component.ts" <<<"$out"; then bad "existing CLAUDE.md issues reported as new (rules not applied to the branch point)" "$out"; else ok "existing CLAUDE.md issues stay existing (rules applied to the branch point)"; fi
 printf "export default { claudeMdSeverity: 'error', framework: 'angular', root: 'src/app' };\n" > strict.mjs
 out=$($G --main --config strict.mjs 2>&1); has "$out" "✗ src/app/core/http/parse.ts:1 contains the any type" "claudeMdSeverity: 'error' makes them errors"
 rm -f strict.mjs
