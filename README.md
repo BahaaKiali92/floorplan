@@ -95,6 +95,71 @@ Without Claude: `npm run map`, `map:main` (CI), `map:check`, `map:ui`, and the s
 Try it on a branch first: moves in the graph change the working copy (`git reset --hard` undoes everything); method moves
 in the graph never change code.
 
+## Rules it checks
+
+The defaults below come from the presets and the setup template. **Error** fails `map:check` (only when a branch adds a
+new one); **warning** is shown but never blocks. Every rule can be changed or switched off in `floorplan.config.mjs`,
+and the rules in your CLAUDE.md win over them.
+
+### Angular
+
+| Rule | What it says | Level |
+|---|---|---|
+| `features-are-isolated` | A feature never imports another feature; shared code goes to `shared/` or `core/` | error |
+| `layers` | `features` → `core` / `layout` → `shared`: a layer never uses one above it | error |
+| `shared-has-no-feature-deps` | `shared/` stays generic: no imports from features or `core/` | error |
+| `no-area-cycles` | Areas don't depend on each other in a circle | error |
+| `services-placement` | Services live in `core/` or one folder per feature. The folder name is **your project's** (`data-access`, `services`, `facades`, `state`…): the one most services already use is the convention; mixed projects get a warning naming the mix | error |
+| `no-deep-library-imports` | No library internals (`rxjs/internal/…`, `@angular/*/src/…`) | error |
+| `no-components-in-core` | `core/` holds services, guards, interceptors; no components | warning |
+| `feature-public-api` | Other code uses a feature only through its `index.ts` | warning |
+| `lazy-features-stay-lazy` | A lazy-loaded feature isn't imported directly (that would pull it into the main bundle) | warning |
+| `features-are-routed` | Every feature is reachable from a route | warning |
+| `aliases-across-areas` | Other areas are imported through path aliases (`@shared/…`), not `../../../` | warning |
+| `no-store-in-shared` | `shared/` components get data through inputs, not from the NgRx store | warning |
+| `file-names-kebab-case` | `order-list.component.ts`, not `OrderList.component.ts` | warning |
+| `one-angular-class-per-file` | One component, service, pipe or directive per file | warning |
+| `orphan-specs` | No `.spec.ts` left behind after its file moved or was deleted | warning |
+| `unused-files` | Files nothing imports | warning |
+| `areas-have-a-purpose` | Every area has a one-line purpose in the config (shown in the map) | warning |
+
+A service listed in a component's `providers` and placed next to that component is accepted there (component-scoped).
+Optional in the template (uncomment to use): specs next to code, big files, hub files, single-file folders, area owners.
+
+**Nx workspaces** (`angular-nx` preset): `apps-are-thin` (libraries never import an app), `libs-public-api` (use a
+library through its `src/index.ts`), `no-lib-cycles`, `aliases-across-libs` (`@scope/name`, not relative paths).
+
+### Spring Boot
+
+Layered (`spring-layered` preset):
+
+| Rule | What it says | Level |
+|---|---|---|
+| `controllers-use-services` | Controllers call services, never repositories | error |
+| `repositories-only-from-services` | Only services use repositories | error |
+| `controllers-return-dtos` | Controllers expose DTOs, not JPA entities | warning |
+| `web-stays-out-of-services` | Services and the domain don't know about HTTP | warning |
+| `no-package-cycles` | Packages don't depend on each other in a circle | error |
+| `constructor-injection` | No `@Autowired` fields; constructor injection (testable without Spring, never null) | warning |
+| `proxy-annotations-on-public-methods` | `@Transactional`, `@Async`, `@Cacheable`… only on public methods; elsewhere Spring's proxy silently ignores them | error |
+| `big-classes` | Classes under 800 lines | warning |
+| `orphan-tests` | A test sits in the same package as its class | warning |
+
+Hexagonal (`spring-hexagonal` preset): `hexagonal-layers` (adapters → application → domain, never back) and
+`domain-is-framework-free` (no Spring, JPA or Jackson in the domain), plus the cycle, injection, proxy and test rules
+above.
+
+### Rules you already have
+
+- **CLAUDE.md**: `/floorplan rules` turns the rules written there into checks (warnings, with the CLAUDE.md line).
+  Where CLAUDE.md contradicts a rule above, CLAUDE.md wins and that rule is switched off.
+- **ESLint** (`eslint-plugin-boundaries`, `import/no-restricted-paths`, `no-restricted-imports`), **Sheriff**,
+  **Nx** module boundaries and **ArchUnit** are read when the project uses them, with their own severities and
+  messages. When ESLint already sets the import boundaries, the preset's import rules switch off so nothing is checked
+  twice.
+
+All rule types and options: [docs/2-VALIDATION.md](docs/2-VALIDATION.md).
+
 ## Documentation
 
 | Document | Read it for |
