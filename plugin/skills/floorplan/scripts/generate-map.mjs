@@ -1505,7 +1505,10 @@ function git(a, opts = {}) {
   } catch { return null; }
 }
 const gitText = (a) => { const r = git(a); return r === null ? null : r.trim(); };
-const repoRoot = gitText(['rev-parse', '--show-toplevel']);
+// real paths on both sides: on Windows the working folder can be a short 8.3 name (C:\\Users\\RUNNER~1) while git reports
+// the long one, and a relative path between the two would point outside the repository
+const realPath = (p) => { try { return fs.realpathSync.native(p); } catch { return p; } };
+const repoRoot = (() => { const r = gitText(['rev-parse', '--show-toplevel']); return r ? realPath(r) : r; })();
 
 function baseFromMergeBase(mb) {
   // Generate the map of the merge-base tree with the CURRENT config, so only code changes count. Cached per merge-base.
@@ -1513,7 +1516,7 @@ function baseFromMergeBase(mb) {
   const key = crypto.createHash('sha1').update(mb + '\0' + cfgText).digest('hex');
   const cacheFile = path.join(LOCAL, 'base-cache.json');
   try { const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); if (c.key === key) return c.data; } catch { /* rebuild */ }
-  const projRel = posix(path.relative(repoRoot, process.cwd()));
+  const projRel = posix(path.relative(repoRoot, realPath(process.cwd())));
   const inProj = (p) => (projRel ? `${projRel}/${p}` : p);
   const tsconfigs = (gitText(['-C', repoRoot, 'ls-tree', '--name-only', mb, projRel ? `${projRel}/` : '.']) || '')
     .split('\n').filter((f) => /(^|\/)tsconfig[^/]*\.json$/.test(f));
@@ -1525,7 +1528,7 @@ function baseFromMergeBase(mb) {
     const tar = git(['-C', repoRoot, 'archive', '--format=tar', mb, '--', inProj(scanPart), ...tsconfigs, ...sheriffFiles], { encoding: 'buffer' });
     let baseData = { files: [], routes: [], areas: {}, violations: [] };
     if (tar && tar.length) {
-      execFileSync('tar', ['-x', '-C', tmp], { input: tar, stdio: ['pipe', 'ignore', 'ignore'] });
+      execFileSync('tar', ['-x'], { cwd: tmp, input: tar, stdio: ['pipe', 'ignore', 'ignore'] }); // no "-C C:\\…": GNU tar reads "C:" as a host
       const cwdTmp = path.join(tmp, projRel);
       fs.mkdirSync(cwdTmp, { recursive: true });
       const cfgCopy = path.join(cwdTmp, path.basename(configPath));
@@ -1559,7 +1562,7 @@ function branchReport() {
       r.ahead = Number(gitText(['rev-list', '--count', `${mb}..${baseRef}`]) || 0);
       try { base = baseFromMergeBase(mb); r.source = 'merge-base'; } catch (e) { if (process.env.FLOORPLAN_DEBUG) console.error('base map failed:', e.message); base = null; }
       // File-level changes from git (committed and uncommitted), including renames.
-      const rootRepoRel = posix(path.relative(repoRoot, ROOT));
+      const rootRepoRel = posix(path.relative(repoRoot, realPath(ROOT)));
       const toRoot = (p) => (p && p.startsWith(rootRepoRel + '/') ? p.slice(rootRepoRel.length + 1) : null);
       const ns = git(['-C', repoRoot, 'diff', '--name-status', '-M', mb, '--', rootRepoRel]);
       const untracked = git(['-C', repoRoot, 'ls-files', '--others', '--exclude-standard', '--', rootRepoRel]);

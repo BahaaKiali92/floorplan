@@ -11,7 +11,8 @@ TOOLS=$SKILL/scripts
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/floorplan-test-XXXX")
 export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
 PASS=0; FAIL=0
-ok()   { PASS=$((PASS + 1)); echo "  ✓ $1"; }
+LAST="(none)"
+ok()   { PASS=$((PASS + 1)); LAST="$1"; echo "  ✓ $1"; }
 bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed 's/^/      /' | head -20
          # GitHub Actions: show each failure as an annotation on the run and the pull request
          if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$1" "$(printf '%s' "${2:-}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }
@@ -19,7 +20,14 @@ bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed
 norm() { sed -E 's#(\.(ts|java))(:[0-9]+)(`?)( +)#\1\4 #g' <<<"$1"; }
 has()  { if grep -qF -- "$2" <<<"$1" || grep -qF -- "$2" <<<"$(norm "$1")"; then ok "$3"; else bad "$3" "$1"; fi; }
 code() { if [ "$1" = "$2" ]; then ok "$3 (exit $1)"; else bad "$3 (expected exit $2, got $1)"; fi; }
-cleanup() { [ -z "${KEEP:-}" ] && rm -rf "$TMP" || echo "kept: $TMP"; }
+cleanup() {
+  rc=$?
+  # GitHub Actions: if the script stopped by itself (not through a failed check), say where
+  if [ -n "${GITHUB_ACTIONS:-}" ] && [ "$rc" -ne 0 ] && [ "$FAIL" -eq 0 ]; then
+    echo "::error title=run.sh stopped early::exit code $rc after $PASS passed checks; last passed: $LAST"
+  fi
+  [ -z "${KEEP:-}" ] && rm -rf "$TMP" || echo "kept: $TMP"
+}
 trap cleanup EXIT
 
 echo "== 0. Repository consistency"
@@ -163,7 +171,7 @@ out=$(node scripts/floorplan/move-cli.mjs orders customers 2>&1)
 has "$out" "application.yml:3 mentions com.acme.shop.orders as text" "warning: package named in application.yml"
 git reset -q --hard && git clean -qfd src
 out=$(node --input-type=module -e "
-  const d = process.cwd() + '/scripts/floorplan/';
+  const d = (await import('node:url')).pathToFileURL(process.cwd() + '/scripts/floorplan/').href; // file:// URL: plain paths fail on Windows
   const { makeContext } = await import(d + 'lib.mjs'); const { planMove, applyPlan, planUndo } = await import(d + 'move.mjs');
   const { execSync } = await import('node:child_process');
   const ctx = await makeContext(); let bad = 0;
