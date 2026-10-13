@@ -7,7 +7,7 @@ A Claude Code plugin for **Angular** and **Spring Boot (Java)** repositories tha
 view for Claude and for the team, and checks it against your rules: built-in ones, presets, and **the rules you
 already wrote in CLAUDE.md**.
 
-![The bubble graph: folders are circles, files have one shape per kind](docs/img/graph-angular.png)
+![Drag a misplaced service into the right folder: preview, imports rewritten, undo](docs/img/demo-move.gif)
 
 - **Your CLAUDE.md is the source of truth**: `/floorplan rules` turns the rules written there ("never use `any`",
   "services live in `services/`", "components use OnPush") into checks. Files that break them get warnings with the
@@ -103,6 +103,8 @@ in the graph never change code.
 | [docs/2-VALIDATION.md](docs/2-VALIDATION.md) | how the rules and checks work, exit codes, a step-by-step check with `sample-app/` |
 | [docs/3-FEATURES.md](docs/3-FEATURES.md) | every feature and rule type, the graph, moves, CLIs, server API, limits |
 | [docs/4-SPRING-BOOT.md](docs/4-SPRING-BOOT.md) | Spring Boot: kinds, rules, class/package moves, method moves, walkthrough with `sample-spring-app/` |
+
+![The bubble graph for Angular: one shape per kind of file](docs/img/graph-angular.png)
 
 ![Spring Boot: controllers are squares, services hexagons, repositories cylinders, entities diamonds](docs/img/graph-spring.png)
 
