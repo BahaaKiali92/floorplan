@@ -243,7 +243,9 @@ export function planFromPairsJava(ctx, pairs) {
         if (r.label) for (const l of r.label) changes.push({ from: '(added)', to: l });
         else changes.push({ from: r.from, to: r.display ?? r.to.trim() });
       }
-      edits.push({ oldFile: info.abs, newFile: newAbs, content: out, changes });
+      // keep the file's line endings: inserted lines use \n, so a CRLF file (Windows checkout) gets CRLF everywhere
+      const crlf = /\r\n/.test(info.src);
+      edits.push({ oldFile: info.abs, newFile: newAbs, content: crlf ? out.replace(/\r?\n/g, '\r\n') : out, changes });
     }
   }
 

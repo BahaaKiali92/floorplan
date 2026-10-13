@@ -15,7 +15,8 @@ LAST="(none)"
 ok()   { PASS=$((PASS + 1)); LAST="$1"; echo "  ✓ $1"; }
 bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed 's/^/      /' | head -20
          # GitHub Actions: show each failure as an annotation on the run and the pull request
-         if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$1" "$(printf '%s' "${2:-}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }
+         # (title: %, :, comma and newlines must be escaped, or GitHub drops the annotation)
+         if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$(printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's/,/%2C/g')" "$(printf '%s' "${2:-}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }
 # issue lines show "path:line  detail"; most checks look at the detail, so they also match with the line number removed
 norm() { sed -E 's#(\.(ts|java))(:[0-9]+)(`?)( +)#\1\4 #g' <<<"$1"; }
 has()  { if grep -qF -- "$2" <<<"$1" || grep -qF -- "$2" <<<"$(norm "$1")"; then ok "$3"; else bad "$3" "$1"; fi; }
@@ -725,6 +726,29 @@ printf '# App\n\n<!-- project-map:start old -->\n## Project structure\n@docs/PRO
 node scripts/floorplan/claude-md.mjs >/dev/null 2>&1; c=$(cat CLAUDE.md)
 if grep -q "project-map:start" <<<"$c"; then bad "old CLAUDE.md section left"; else ok "old CLAUDE.md section replaced"; fi
 has "$c" "Own text." "rest of CLAUDE.md kept"
+
+echo "== 25. Windows line endings (CRLF) survive moves and undo"
+CR=$TMP/crlf
+cp -r "$REPO/sample-spring-app" "$CR" && cd "$CR" || { bad "fixture $CR"; exit 1; }
+find src -name "*.java" -exec sed -i.bak 's/$/\r/' {} \; && find src -name "*.bak" -delete
+mkdir -p scripts/floorplan && cp -r "$TOOLS"/. scripts/floorplan/ && cp "$SKILL/templates/floorplan.config.spring.mjs" floorplan.config.mjs
+git init -q -b main && git -c core.autocrlf=false add -A && git -c core.autocrlf=false commit -qm crlf
+out=$(node --input-type=module -e "
+  const d = (await import('node:url')).pathToFileURL(process.cwd() + '/scripts/floorplan/').href;
+  const fs = await import('node:fs'); const path = await import('node:path');
+  const { makeContext } = await import(d + 'lib.mjs'); const { planMove, applyPlan, planUndo } = await import(d + 'move.mjs');
+  const { execSync } = await import('node:child_process');
+  const lfOnly = () => { let n = 0; const walk = (p) => { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const f = path.join(p, e.name); if (e.isDirectory()) walk(f); else if (f.endsWith('.java') && /[^\r]\n/.test(fs.readFileSync(f, 'utf8'))) n++; } }; walk('src'); return n; };
+  const ctx = await makeContext(); let bad = 0;
+  for (const [s, t] of [['orders/OrderService.java', 'customers'], ['shared/Money.java', 'orders']]) {
+    const r = planMove(ctx, s, t); applyPlan(ctx, r.plan);
+    if (lfOnly()) { bad++; console.log('LF lines after moving ' + s); }
+    applyPlan(ctx, planUndo(ctx, r.plan.pairs.map(({ from, to }) => ({ from, to }))).plan);
+    if (execSync('git -c core.autocrlf=false status --porcelain src', { encoding: 'utf8' })) { bad++; console.log('not restored: ' + s); }
+    execSync('git reset -q --hard && git clean -qfd src');
+  }
+  console.log(bad ? 'crlf broken' : 'crlf kept');" 2>&1)
+has "$out" "crlf kept" "Java move keeps CRLF line endings and undo restores CRLF files exactly"
 
 echo
 echo "Passed: $PASS   Failed: $FAIL"

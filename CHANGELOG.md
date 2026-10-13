@@ -16,6 +16,9 @@
   (preset, config, or `CLAUDE.md:42` with the quote), what is wrong, why, and **how to fix it** (concrete steps or the
   command), in the console, the map, the branch report, `map:check`, the PR comment, the edit hook and the graph.
   The console shows 3 issues per rule plus a count; the map lists all.
+- Windows: Java moves keep CRLF line endings (inserted imports used LF; undo couldn't restore the file exactly); the
+  branch report finds the branch point when the working folder is a short 8.3 path (C:\\Users\\RUNNER~1); the map of
+  main is extracted without an absolute `tar -C` path. Found by the first Windows CI run.
 - Plugin ready for the marketplace: README in the plugin, `claude plugin validate --strict` clean, skill frontmatter
   accepted by claude.ai uploads; setup can commit the skill into the repository for cloud sessions.
 
