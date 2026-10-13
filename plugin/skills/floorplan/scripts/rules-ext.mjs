@@ -17,7 +17,7 @@ function walkFiles(dir, test, acc = [], depth = 0) {
   }
   return acc;
 }
-const stripJson = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:"'])\/\/.*$/gm, '$1').replace(/,(\s*[}\]])/g, '$1');
+import { jsonText as stripJson } from './eslint-rules.mjs'; // comments and trailing commas; '/**/' inside strings stays
 
 // ---------- Nx ----------
 function tagMatches(pattern, tag) {

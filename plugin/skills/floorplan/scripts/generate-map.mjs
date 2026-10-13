@@ -139,6 +139,32 @@ const CLAUDE_RULES = { file: config.claudeRules || 'floorplan.claude-rules.json'
   config.rules = [...config.rules.filter((r) => !replacedNames.has(r.name)), ...CLAUDE_RULES.rules];
 }
 
+// ---------- import boundaries the team already has in ESLint (eslint-rules.mjs) ----------
+// eslint-plugin-boundaries, import/no-restricted-paths and no-restricted-imports are checked as their own rules
+// (eslint:…). When they cover imports between areas, the preset's import rules (noImport, layers) are switched off:
+// the team's ESLint config is the source of truth, Floorplan doesn't keep a second copy of the same boundary.
+// eslint: false skips this; eslint: { keepPresetRules: true } keeps both.
+const ESLINT = { loaded: { entries: [] }, covers: false, replaced: [], note: '' };
+if (!SPRING && config.eslint !== false) {
+  try {
+    const E = await import('./eslint-rules.mjs');
+    if (process.env.FLOORPLAN_ESLINT_JSON) ESLINT.loaded = JSON.parse(fs.readFileSync(process.env.FLOORPLAN_ESLINT_JSON, 'utf8'));
+    else {
+      const top = (() => { try { return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } })();
+      ESLINT.loaded = await E.loadEslintEntries(process.cwd(), top);
+    }
+    ESLINT.note = ESLINT.loaded.note || '';
+    const probe = E.eslintViolations({ ROOT: path.resolve(config.root), cwd: process.cwd(), files: [], loaded: ESLINT.loaded });
+    ESLINT.covers = !!probe.covers;
+    if (ESLINT.covers && !(config.eslint && config.eslint.keepPresetRules)) {
+      const by = [...new Set(probe.rules.map((r) => r.label))].join(', ');
+      ESLINT.replaced = config.rules.filter((r) => (r._origin || '').startsWith('preset ') && ['noImport', 'layers'].includes(r.type)).map((r) => ({ rule: r.name, origin: r._origin, by }));
+      const off = new Set(ESLINT.replaced.map((x) => x.rule));
+      config.rules = config.rules.filter((r) => !off.has(r.name));
+    }
+  } catch (e) { ESLINT.note = `Reading the ESLint config failed: ${e.message}`; }
+}
+
 // CI templates ask for the map paths, so they work with any output folder
 const AREAS_DIR = path.join(path.dirname(config.output.markdown), 'floorplan-areas');
 if (args.includes('--outputs')) {
@@ -924,15 +950,26 @@ function runRules(files, opts = {}) {
 let violations = runRules(files);
 
 // ---------- rules from other tools: Nx module boundaries, ArchUnit ----------
-const EXT = { nx: { active: false }, arch: { active: false } };
+const EXT = { nx: { active: false }, arch: { active: false }, eslint: { active: false } };
 {
   const X = await import('./rules-ext.mjs');
   try {
     if (!SPRING) EXT.nx = await X.nxViolations({ ROOT, cwd: process.cwd(), files, mode: config.nx });
     else EXT.arch = X.archUnitViolations({ files, scanRoot: path.resolve(config.scanRoot || '.'), mode: config.archunit, walkJava: (await import('./java.mjs')).walkJava });
   } catch (e) { if (!QUIET && !SESSION) console.warn(`! Reading Nx/ArchUnit rules failed: ${e.message}`); }
-  for (const r of [EXT.nx, EXT.arch]) if (r.active) violations.push(...r.violations);
+  if (!SPRING && ESLINT.loaded.entries?.length) {
+    try { EXT.eslint = (await import('./eslint-rules.mjs')).eslintViolations({ ROOT, cwd: process.cwd(), files, loaded: ESLINT.loaded }); }
+    catch (e) { ESLINT.note = `Checking the ESLint boundary rules failed: ${e.message}`; }
+  }
+  for (const r of [EXT.nx, EXT.arch, EXT.eslint || {}]) if (r.active) violations.push(...r.violations);
+  // the same import reported by ESLint and by a Floorplan import rule: show it once, as the ESLint issue
+  if (EXT.eslint.active && EXT.eslint.violations.length) {
+    const seen = new Set(EXT.eslint.violations.map((v) => `${v.file}\0${v.detail}`));
+    const importRule = new Set(config.rules.filter((r) => ['noImport', 'layers'].includes(r.type)).map((r) => r.name));
+    violations = violations.filter((v) => !(importRule.has(v.rule) && seen.has(`${v.file}\0${v.detail}`)));
+  }
   if (EXT.nx.note && !QUIET && !SESSION && MODE !== 'json') console.warn(`! ${EXT.nx.note}`);
+  if (ESLINT.note && !QUIET && !SESSION && !HOOK && MODE !== 'json') console.warn(`! ${ESLINT.note}`);
 }
 
 // ---------- fix suggestions for placement issues ----------
@@ -1040,7 +1077,7 @@ function importLine(file, target) {
     const j = lines.findIndex((l, k) => k > 0 && !/^\s*(package|import)\b/.test(l) && new RegExp(`\\b${cls}\\b`).test(l));
     return j >= 0 ? j + 1 : undefined;
   }
-  const spec = f?._specOf?.get(target);
+  const spec = f?._specOf?.get(target) || ((f?._ext || []).includes(target) ? target : null); // npm packages: the specifier itself
   if (!spec) return undefined;
   const i = lines.findIndex((l) => l.includes(`'${spec}'`) || l.includes(`"${spec}"`) || l.includes(`\`${spec}\``));
   return i >= 0 ? i + 1 : undefined;
@@ -1088,6 +1125,11 @@ function howToFix(v, rule) {
       if (v.rule.startsWith('sheriff:')) return 'Import through the other module\'s index.ts, or allow the dependency in sheriff.config.ts (depRules) if it is intended.';
       if (v.rule.startsWith('nx:')) return 'Remove the import, or allow the tags in depConstraints (@nx/enforce-module-boundaries) if it is intended.';
       if (v.rule.startsWith('archunit:')) return 'Remove the dependency, or change the ArchUnit test if it is intended.';
+      if (v.rule.startsWith('eslint:')) {
+        const cfg = EXT.eslint.file || 'the ESLint config';
+        if (v.rule === 'eslint:no-restricted-imports') return `Stop importing ${t}${v.line ? ` (line ${v.line})` : ''}: use what the message names instead. If this import is intended, change ${v.eslintRule} in ${cfg}.`;
+        return `Remove the import of ${t}${v.line ? ` (line ${v.line})` : ''}. If both places need that code, move it to a folder both may use (\`node scripts/floorplan/move-cli.mjs\` rewrites the imports). If the dependency is intended, allow it in ${v.eslintRule} in ${cfg}.`;
+      }
       return '';
   }
 }
@@ -1095,7 +1137,8 @@ for (const v of violations) {
   const rule = ruleByName.get(v.rule);
   if (v.line === undefined && v.detail.startsWith('imports ')) v.line = importLine(v.file, v.detail.slice(8));
   if (v.line === undefined) delete v.line;
-  v.source = rule?._origin || (v.rule.startsWith('sheriff:') ? 'sheriff.config.ts' : v.rule.startsWith('nx:') ? 'Nx depConstraints' : v.rule.startsWith('archunit:') ? 'ArchUnit tests' : 'floorplan');
+  v.source = rule?._origin || (v.rule.startsWith('sheriff:') ? 'sheriff.config.ts' : v.rule.startsWith('nx:') ? 'Nx depConstraints' : v.rule.startsWith('archunit:') ? 'ArchUnit tests'
+    : v.rule.startsWith('eslint:') ? `${v.eslintRule || 'ESLint'} in ${EXT.eslint.file || 'the ESLint config'}` : 'floorplan');
   if (rule?._quote) v.quote = rule._quote;
   const h = howToFix(v, rule);
   if (h) v.howToFix = h;
@@ -1351,7 +1394,7 @@ if (COMPACT && depLines.length > 80) {
   md.push(`- …and ${depLines.length - 80} more areas (see the .json).`);
 } else md.push(...depLines);
 md.push('');
-if (config.rules.length || SHERIFF.active || EXT.nx.active || EXT.arch.active) {
+if (config.rules.length || SHERIFF.active || EXT.nx.active || EXT.arch.active || EXT.eslint.active || ESLINT.replaced.length) {
   md.push('## Rules');
   md.push('');
   for (const r of config.rules) md.push(`- **${r.name}** (${r.severity || 'error'}${r._origin ? `, from ${r._origin}` : ''}${CLAUDE_RULES.confirmed.has(r.name) ? `, confirmed by ${CLAUDE_RULES.confirmed.get(r.name)}` : ''}${r.errorFrom ? `, error from ${r.errorFrom}` : ''}${config.budget?.[r.name] !== undefined ? `, budget ${config.budget[r.name]}` : ''}): ${r.message || ''}${r.why ? ` Why: ${r.why}` : ''}${r.docs ? ` ([docs](${r.docs}))` : ''}`);
@@ -1361,6 +1404,11 @@ if (config.rules.length || SHERIFF.active || EXT.nx.active || EXT.arch.active) {
   if (SHERIFF.active) md.push('- **sheriff:encapsulation**, **sheriff:dependency-rule** (error): module rules from `sheriff.config.ts`, checked by Sheriff.');
   if (EXT.nx.active) md.push(`- **nx:module-boundaries** (error): \`depConstraints\` of \`@nx/enforce-module-boundaries\` (${EXT.nx.constraints} constraints, ${EXT.nx.projects} projects).`);
   if (EXT.arch.active) md.push(`- **archunit:…** (error): ${EXT.arch.rules} package rule(s) from ArchUnit tests.`);
+  if (EXT.eslint.active) for (const r of EXT.eslint.rules) md.push(`- **${r.name}**: \`${r.eslintRule}\` from ${EXT.eslint.file || 'the ESLint config'} (severity as in ESLint).`);
+  if (EXT.eslint.active && !ESLINT.covers && EXT.eslint.rules.some((r) => r.name === 'eslint:no-restricted-imports') && config.rules.some((r) => r.type === 'noImport'))
+    md.push('- The import rules above stay on next to `no-restricted-imports`: that rule matches the import text, so relative imports (`../../other-feature/…`) pass it. An import both report is shown once, as the ESLint issue.');
+  for (const x of ESLINT.replaced) md.push(`- ~~${x.rule}~~ (${x.origin}) switched off: the ESLint config (${x.by}) already sets the import boundaries.`);
+  if (EXT.eslint.unsupported?.length) md.push(`- Not read from ESLint: ${EXT.eslint.unsupported.join(', ')} (ESLint still checks them).`);
   md.push('');
 }
 md.push(`## Violations (${violations.length})`);
@@ -1445,6 +1493,7 @@ const data = {
   folders: config.folders,
   rules: config.rules,
   sheriff: SHERIFF.active,
+  ...(EXT.eslint.active || ESLINT.replaced.length ? { eslint: { file: EXT.eslint.file || null, rules: EXT.eslint.rules || [], replaced: ESLINT.replaced } } : {}),
   version: TOOL_VERSION,
   violations,
   accepted: acceptedViolations,
@@ -1524,7 +1573,9 @@ function baseFromMergeBase(mb) {
   // changes show up as new issues
   const claudeRulesPath = path.resolve(CLAUDE_RULES.file);
   const claudeRulesText = fs.existsSync(claudeRulesPath) ? fs.readFileSync(claudeRulesPath, 'utf8') : '';
-  const key = crypto.createHash('sha1').update(mb + '\0' + cfgText + '\0' + claudeRulesText).digest('hex');
+  // the ESLint boundary rules too: the current ones (as JSON, so the branch point needs no ESLint plugins installed)
+  const eslintText = ESLINT.loaded.entries?.length ? JSON.stringify(ESLINT.loaded) : '';
+  const key = crypto.createHash('sha1').update(mb + '\0' + cfgText + '\0' + claudeRulesText + '\0' + eslintText).digest('hex');
   const cacheFile = path.join(LOCAL, 'base-cache.json');
   try { const c = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); if (c.key === key) return c.data; } catch { /* rebuild */ }
   const projRel = posix(path.relative(repoRoot, realPath(process.cwd())));
@@ -1550,8 +1601,11 @@ function baseFromMergeBase(mb) {
         try { fs.symlinkSync(path.resolve('node_modules'), path.join(cwdTmp, 'node_modules'), 'junction'); } catch { /* without it Sheriff is skipped in the base map */ }
       }
       const outFile = path.join(tmp, 'base-map.json');
+      const env = { ...process.env };
+      if (eslintText) { env.FLOORPLAN_ESLINT_JSON = path.join(tmp, 'eslint-rules.json'); fs.writeFileSync(env.FLOORPLAN_ESLINT_JSON, eslintText); }
+      else env.FLOORPLAN_ESLINT_JSON = (fs.writeFileSync(path.join(tmp, 'eslint-rules.json'), '{"entries":[]}'), path.join(tmp, 'eslint-rules.json'));
       execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--json-stdout', '--json-out', outFile, '--config', cfgCopy, '--framework', FRAMEWORK],
-        { cwd: cwdTmp, stdio: ['ignore', 'ignore', 'ignore'] });
+        { cwd: cwdTmp, stdio: ['ignore', 'ignore', 'ignore'], env });
       baseData = JSON.parse(fs.readFileSync(outFile, 'utf8'));
     }
     fs.writeFileSync(cacheFile, JSON.stringify({ key, data: baseData }));

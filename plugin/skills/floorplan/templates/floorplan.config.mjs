@@ -34,6 +34,12 @@ export default {
   // map, the graph and map:check (only new issues fail). 'auto' (default), true, or false.
   sheriff: 'auto',
 
+  // ESLint: import boundaries from eslint-plugin-boundaries, import/no-restricted-paths and no-restricted-imports in
+  // the project's ESLint config are checked too (only new issues fail). With boundaries or no-restricted-paths, the
+  // preset's import rules are switched off (ESLint is the source of truth). 'auto' (default), false, or
+  // { keepPresetRules: true }.
+  eslint: 'auto',
+
   // Large apps: above compactAbove files the Structure section shows counts per folder instead of file names,
   // compactDepth levels deep (reduced automatically to stay under compactMaxLines), and folders with more than
   // compactWideFolder subfolders list their names on one line. Keeps the map small enough for Claude.

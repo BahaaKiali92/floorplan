@@ -15,7 +15,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`, `4-SPRING-BOOT.md`; `experiments/` for measured results. |
 | `sample-app/` | Tiny Angular-shaped app with seeded issues (type stubs instead of real Angular). Used by tests and docs. |
 | `sample-spring-app/` | Small Spring Boot (Maven) app with seeded issues. Compiled in tests with `javac` against `tests/java-stubs/`. |
-| `tests/run.sh` | End-to-end tests on temp copies of both samples (275 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
+| `tests/run.sh` | End-to-end tests on temp copies of both samples (288 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
 | `scripts/` | `build-kit.sh` (→ `dist/floorplan-kit.zip`). |
 | `docs/dev/PUBLISHING.md` | Release checklist, community marketplace submission. |
 | `docs/dev/HANDOFF.md` | Status and next steps for whoever (or whichever Claude session) continues the work. |
@@ -39,6 +39,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `claude-md.mjs` | Writes/updates the marked "Project structure" section in a repo's CLAUDE.md (framework, map path, CI or no-CI, keeps CRLF). |
 | `cache.mjs` | Per-file parse cache (size + mtime) in `.floorplan/`. |
 | `rules-ext.mjs` | Extra rule sources: Nx depConstraints, ArchUnit. |
+| `eslint-rules.mjs` | Extra rule source: ESLint import boundaries (eslint-plugin-boundaries, import/no-restricted-paths, no-restricted-imports); switches off the preset import rules they cover. |
 | `fonts/` | Bundled Barlow (OFL) for the graph; served by `server.mjs` at `/vendor/fonts/`. |
 | `VERSION` | Tool version; copied into repos so `/floorplan update` and the version check can compare. Bump it with plugin.json. |
 

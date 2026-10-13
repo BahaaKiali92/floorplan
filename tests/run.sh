@@ -756,6 +756,60 @@ out=$(node --input-type=module -e "
   console.log(bad ? 'crlf broken' : 'crlf kept');" 2>&1)
 has "$out" "crlf kept" "Java move keeps CRLF line endings and undo restores CRLF files exactly"
 
+echo "== 26. ESLint boundary rules: boundaries, no-restricted-paths, no-restricted-imports"
+ES=$TMP/eslint
+cp -r "$REPO/sample-app" "$ES" && cd "$ES" || { bad "fixture $ES"; exit 1; }
+rm -rf node_modules; mkdir -p scripts/floorplan && cp -r "$TOOLS"/. scripts/floorplan/
+printf "export default { presets: ['angular-feature-sliced'] };\n" > floorplan.config.mjs
+G="node scripts/floorplan/generate-map.mjs"
+cat > eslint.config.mjs <<'EOF2'
+export default [{ files: ['src/**/*.ts'],
+  settings: { 'boundaries/elements': [ { type: 'feature', pattern: 'src/app/features/*', capture: ['name'] }, { type: 'shared', pattern: 'src/app/shared' }, { type: 'core', pattern: 'src/app/core' } ] },
+  rules: { 'boundaries/element-types': ['error', { default: 'allow', rules: [ { from: 'feature', disallow: [['feature', { name: '!${from.name}' }]], message: '${file.type} ${file.name} must not import ${dependency.type} ${dependency.name}' } ] }] } }];
+EOF2
+git init -q -b main && git add -A && git commit -qm base
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "eslint:boundaries" "eslint-plugin-boundaries rule read from eslint.config.mjs"
+has "$out" "feature orders must not import feature customers" "boundaries message with captures filled in"
+has "$out" "~~features-are-isolated~~ (preset angular-feature-sliced) switched off" "preset import rule switched off when ESLint sets the boundaries"
+has "$out" "order-detail.component.ts:3" "ESLint issue has the import's line"
+if grep -q "settings-page.component.ts\` imports features/core" <<<"$out"; then bad "feature to core reported"; else ok "allowed dependencies (feature to core/shared, inside one feature) not reported"; fi
+git checkout -qb feat
+sed -i.bak "1a import { OrdersService } from '../../orders/data-access/orders.service';" src/app/features/settings/settings-page/settings-page.component.ts && rm -f src/app/features/settings/settings-page/*.bak
+out=$($G --check 2>&1); c=$?
+has "$out" "rule: eslint:boundaries (error, from boundaries/element-types in eslint.config.mjs)" "new ESLint boundary issue fails the branch check"
+has "$out" "1 new rule issue" "existing ESLint issue on main is not new"
+code $c 1 "--check exit code with a new ESLint issue"
+out=$(echo "{\"tool_input\":{\"file_path\":\"$(npath "$ES")/src/app/features/settings/settings-page/settings-page.component.ts\"}}" | $G --hook 2>&1)
+has "$out" "feature settings must not import feature orders" "edit hook reports the ESLint issue"
+git checkout -q -- . && git checkout -q main
+rm eslint.config.mjs
+cat > .eslintrc.json <<'EOF2'
+{ "root": true, // Angular CLI style
+  "overrides": [ { "files": ["*.ts"], "rules": { "@typescript-eslint/no-restricted-imports": ["warn", {
+      "paths": [{ "name": "@angular/core", "importNames": ["Input"] }],
+      "patterns": [ { "group": ["**/customers/**", "!**/customers/index"], "message": "Import customers only through its public API." } ] }] } },
+    { "files": ["src/app/features/customers/**/*.ts"], "rules": { "@typescript-eslint/no-restricted-imports": "off" } } ] }
+EOF2
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "Import customers only through its public API." "no-restricted-imports pattern group from .eslintrc.json (comments, /**/ inside strings)"
+if grep -q "app.routes.ts.*eslint:no-restricted-imports" <<<"$out"; then bad "lazy import() reported by no-restricted-imports"; else ok "no-restricted-imports skips import() like ESLint"; fi
+has "$out" "stay on next to \`no-restricted-imports\`" "no-restricted-imports does not switch off the preset import rules"
+if grep -q "order-detail.component.ts\` imports features/customers/ui/customer-avatar/customer-avatar.component.ts — features-are-isolated" <<<"$out"; then bad "same import reported twice"; else ok "an import ESLint and the preset both report is shown once"; fi
+rm .eslintrc.json
+cat > eslint.config.js <<'EOF2'
+export default [{ rules: { 'import/no-restricted-paths': ['error', { zones: [
+  { target: './src/app/features/orders', from: './src/app/features', except: ['./orders'], message: 'orders must not use other features' } ] }] } }];
+EOF2
+out=$($G --main 2>&1; cat docs/FLOORPLAN.md)
+has "$out" "orders must not use other features" "import/no-restricted-paths zones (target, from, except)"
+printf "import x from 'eslint-plugin-not-installed-here';\nexport default [x];\n" > eslint.config.js
+out=$($G --main 2>&1)
+has "$out" "could not load eslint.config.js" "ESLint config that can't load: one clear note, map still built"
+printf "export default { presets: ['angular-feature-sliced'], eslint: false };\n" > floorplan.config.mjs
+out=$($G --main 2>&1)
+if grep -q "could not load eslint" <<<"$out"; then bad "eslint: false still reads ESLint"; else ok "eslint: false skips the ESLint config"; fi
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

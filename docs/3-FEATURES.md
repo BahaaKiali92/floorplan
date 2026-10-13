@@ -371,8 +371,8 @@ Current limits:
 - Template and test-mock detection for methods is text-based (can list a same-named method of another object).
 - Undo history lives in the running graph server; after a restart use git. For long sessions run the server in your
   own terminal (`npm run map:ui`): started from Claude it is a background task that stops after a while.
-- Rules: see [2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules) for all types. Sheriff, Nx module boundaries and
-  ArchUnit are read when the project uses them. "Types only" is detected for interfaces and type aliases, not for
+- Rules: see [2-VALIDATION.md, A2](2-VALIDATION.md#a2-structure-rules) for all types. Sheriff, Nx module boundaries, ESLint
+  boundary rules and ArchUnit are read when the project uses them. "Types only" is detected for interfaces and type aliases, not for
   classes used only in type positions.
 - Very large apps: the first method analysis can take a few seconds (the TypeScript program is built once, then reused).
 

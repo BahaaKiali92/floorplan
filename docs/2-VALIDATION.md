@@ -175,7 +175,7 @@ services rule replaced the preset's, 18 warnings found; 8 turns, about $0.17
 ```
 
 The path is relative to the repository (clickable in terminals and editors), with the line for imports and code
-patterns. `from` is the rule's origin: a preset, `floorplan.config.mjs`, `CLAUDE.md:<line>`, Sheriff, Nx or ArchUnit.
+patterns. `from` is the rule's origin: a preset, `floorplan.config.mjs`, `CLAUDE.md:<line>`, Sheriff, Nx, ArchUnit or the ESLint config.
 Every rule type has a default fix text built from the actual paths (move command, alias to use, file to create, …);
 a rule's own `howToFix` replaces it. The terminal shows three issues per rule plus a count; the map, the JSON and the
 graph list all of them. The JSON has `line`, `source`, `quote` and `howToFix` per issue.
@@ -201,6 +201,36 @@ own rules come on top: same `name` replaces the preset's rule, `severity: 'off'`
 
 Like Sheriff, both are extra rule sources: their issues appear in the map, the graph, the branch report and the
 new-issues-only check.
+
+### ESLint boundary rules
+
+If the project already sets import boundaries in ESLint, Floorplan reads them instead of keeping a second copy. It
+looks for the nearest ESLint config (`eslint.config.mjs/.js/.cjs`, `.eslintrc.json`, `.eslintrc(.js/.cjs)`, the
+`eslintConfig` in `package.json`; from the project folder up to the repository root) and checks:
+
+- **eslint-plugin-boundaries**: `boundaries/element-types` with the `boundaries/elements` settings (modes `folder`,
+  `file`, `full`, `capture`, selectors with captures such as `['feature', { name: '!${from.name}' }]`, `default`,
+  `allow` / `disallow`, `importKind`, `message` templates). Issues: `eslint:boundaries`.
+- **import/no-restricted-paths** (also `import-x/`): `zones` with `target`, `from`, `except`, `basePath`, `message`.
+  Issues: `eslint:no-restricted-paths`.
+- **no-restricted-imports** (also `@typescript-eslint/`): `paths` and `patterns` (gitignore-style strings, `group`,
+  `regex`, `allowTypeImports`). Like ESLint, `import()` is not checked. Issues: `eslint:no-restricted-imports`.
+
+The severity comes from ESLint (`warn` / `error`), the message from the rule's `message`, and only the files the
+config entry applies to (`files`, `ignores`, `overrides`) are checked. Issues appear in the map, the graph, the edit
+hook, the branch report and `map:check` (only new ones fail; the branch point is checked with the current ESLint
+rules, read once as JSON, so it needs no ESLint plugins).
+
+**No double checks.** When `eslint-plugin-boundaries` or `no-restricted-paths` is active, the preset's import rules
+(`noImport`, `layers`, e.g. `features-are-isolated`) are switched off and the map says so: ESLint is the source of
+truth for the boundaries. Rules you wrote yourself in `floorplan.config.mjs` stay. `no-restricted-imports` doesn't
+switch them off: it matches the import text, so a relative import (`../../customers/…`) passes a
+`**/features/customers/**` pattern; the map notes this. An import both report is shown once, as the ESLint issue.
+`eslint: { keepPresetRules: true }` keeps the preset rules anyway; `eslint: false` skips ESLint.
+
+The ESLint config is loaded with Node, so its plugins must be installed (`npm install`); otherwise the map shows one
+note and continues without the ESLint rules. `eslint.config.ts`, rules in shared configs (`extends`) and the other
+boundaries rules (`entry-point`, `external`, `no-private`) are not read; ESLint still checks them.
 
 ### Sheriff
 

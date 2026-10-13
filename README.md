@@ -19,7 +19,7 @@ already wrote in CLAUDE.md**.
 - **Rules** for where code lives and what may use what: imports between features, layers, cycles, placement, naming,
   packages a part of the code must not use, lazy-loading boundaries, size, unused files, orphaned tests; Spring:
   controllers → services → repositories, constructor injection, `@Transactional` on methods Spring's proxy can't reach.
-  Presets for feature-sliced Angular, Nx, layered and hexagonal Spring Boot. Reads Sheriff, Nx and ArchUnit rules too.
+  Presets for feature-sliced Angular, Nx, layered and hexagonal Spring Boot. Reads your existing Sheriff, Nx, ESLint boundary and ArchUnit rules instead of duplicating them.
 - **CI check that fails only on issues a branch introduces** (or when a rule's budget goes up), with a pull-request
   comment. Existing problems on main don't block anyone; documented exceptions go in an `accepted` list.
 - **Edit check**: right after Claude writes a file that breaks a rule, it is told so, with the fix.

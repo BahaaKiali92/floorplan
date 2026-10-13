@@ -45,6 +45,11 @@ Start from `<SKILL_DIR>/templates/floorplan.config.mjs` and adapt it:
    Sheriff already covers (`features-are-isolated`, `feature-public-api`, `shared-has-no-feature-deps`) and keep the
    ones it doesn't (placement, naming, one class per file). Without Sheriff, keep them; mention that Sheriff is the
    standard tool for this in Angular if the team wants module boundaries also in the editor (ESLint plugin).
+   **ESLint**: if the ESLint config uses `eslint-plugin-boundaries`, `import/no-restricted-paths` or
+   `no-restricted-imports`, those rules are read automatically (`eslint: 'auto'`; the plugins must be installed).
+   With boundaries or no-restricted-paths, the preset's import rules are switched off (the map says so); tell the
+   user their ESLint config stays the source of truth for import boundaries, and don't add the same rules to
+   `floorplan.config.mjs`.
 6. **Style-guide rules** (`file-names-kebab-case`, `one-angular-class-per-file`, `feature-public-api`, the commented
    `specs-next-to-code`): they start as warnings. Run a first map with them and show how many each finds; keep the
    ones the team wants.

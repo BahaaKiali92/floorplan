@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.0 (2026-10-13)
+
+- **ESLint boundary rules are read, not duplicated.** `eslint-plugin-boundaries` (`boundaries/element-types` with its
+  elements, captures and message templates), `import/no-restricted-paths` (zones) and `no-restricted-imports`
+  (paths, patterns, groups, regex) from the project's ESLint config (flat config, `.eslintrc*`, `package.json`) are
+  checked as `eslint:…` issues: in the map, the graph, the edit hook, the branch report and `map:check` (only new
+  ones fail; the branch point uses the current ESLint rules). Severity and messages come from ESLint.
+- When boundaries or no-restricted-paths set the import boundaries, the preset's import rules (`features-are-isolated`,
+  `layers`) are switched off and the map says so. `no-restricted-imports` doesn't switch them off, because it matches
+  import text and misses relative imports; an import both report is shown once. `eslint: false` /
+  `{ keepPresetRules: true }` in the config.
+- `.eslintrc.json` and `project.json` with `/**/` inside strings (glob patterns) are read correctly (it was taken
+  for a comment).
+
 ## 1.0.0 (2026-10-13): Floorplan
 
 - **New name: Floorplan** (was project-map). Command `/floorplan`, config `floorplan.config.mjs`, tools in
