@@ -294,7 +294,7 @@ printf 'docs/\n' >> .gitignore
 out=$($G --main 2>&1); has "$out" "is ignored by git" "warns when the main map folder is gitignored"
 git checkout -q -- .gitignore
 out=$($G --outputs); has "$out" "docs/FLOORPLAN.md docs/floorplan.json" "--outputs for CI templates"
-out=$(git switch -q -c feat/x && env -u CI -u TF_BUILD $G --main 2>&1);  # the warning is off in CI on purpose has "$out" "The main map describes main" "warns when --main runs on a branch"
+out=$(git switch -q -c feat/x && env -u CI -u TF_BUILD $G --main 2>&1); has "$out" "The main map describes main" "warns when --main runs on a branch (CI unset: the warning is off in CI on purpose)"
 
 echo "== 15. Per-edit hook, fixes, PR comment, cache"
 SP2=$TMP/spring2
