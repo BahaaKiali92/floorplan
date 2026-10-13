@@ -20,6 +20,8 @@ bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed
 # issue lines show "path:line  detail"; most checks look at the detail, so they also match with the line number removed
 norm() { sed -E 's#(\.(ts|java))(:[0-9]+)(`?)( +)#\1\4 #g' <<<"$1"; }
 has()  { if grep -qF -- "$2" <<<"$1" || grep -qF -- "$2" <<<"$(norm "$1")"; then ok "$3"; else bad "$3" "$1"; fi; }
+# paths handed to Node inside JSON: Windows-native on Windows (Git Bash paths like /d/a/... mean nothing to Node)
+npath() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 code() { if [ "$1" = "$2" ]; then ok "$3 (exit $1)"; else bad "$3 (expected exit $2, got $1)"; fi; }
 cleanup() {
   rc=$?
@@ -36,7 +38,7 @@ echo "== 0. Repository consistency"
 v=$(cat "$TOOLS/VERSION"); grep -q "\"version\": \"$v\"" plugin/.claude-plugin/plugin.json && ok "plugin.json version = scripts/VERSION ($v)" || bad "plugin.json version differs from scripts/VERSION"
 grep -q "## $v " CHANGELOG.md && ok "CHANGELOG has $v" || bad "CHANGELOG has no section for $v"
 for f in "$TOOLS"/*.mjs; do node --check "$f" 2>/dev/null && ok "syntax $(basename "$f")" || bad "syntax $(basename "$f")"; done
-node -e "const h=require('fs').readFileSync('$TOOLS/ui.html','utf8');new Function(h.split('<script>')[1].split('</script>')[0])" 2>/dev/null && ok "ui.html script parses" || bad "ui.html script parses"
+node -e "const h=require('fs').readFileSync('plugin/skills/floorplan/scripts/ui.html','utf8');new Function(h.split('<script>')[1].split('</script>')[0])" 2>/dev/null && ok "ui.html script parses" || bad "ui.html script parses"
 
 echo "== 1. Setup on a fresh copy of sample-app"
 APP=$TMP/app
@@ -72,7 +74,8 @@ git switch -q -c feature/test
 node scripts/floorplan/move-cli.mjs features/customers/ui/customer-avatar shared/ui --apply >/dev/null 2>&1; code $? 0 "apply folder move"
 [ ! -d src/app/features/customers/ui ] && ok "empty folder removed" || bad "empty folder left behind"
 grep -q "@shared/ui/customer-avatar/customer-avatar.component" src/app/features/orders/order-detail/order-detail.component.ts && ok "import rewritten in caller" || bad "import not rewritten"
-tsc_out=$(npx --no-install tsc -p tsconfig.json 2>&1); code $? 0 "type check passes after the move"
+tsc_out=$(node node_modules/typescript/bin/tsc -p tsconfig.json 2>&1); c=$?  # not npx: a linked TS_PATH has no .bin/tsc
+[ "$c" = 0 ] && ok "type check passes after the move (exit 0)" || bad "type check passes after the move (exit $c)" "$tsc_out"
 git status --porcelain | grep -q "^R " && ok "git mv used (rename staged)" || bad "no git rename"
 
 echo "== 4. Branch report and new-issues check"
@@ -319,11 +322,11 @@ out=$($G --main 2>&1); has "$out" "move-cli.mjs shared/OrderPricingService.java 
 m1=$(md5sum < docs/FLOORPLAN.md); $G --main >/dev/null 2>&1; m2=$(md5sum < docs/FLOORPLAN.md); [ "$m1" = "$m2" ] && ok "cached run gives the same map" || bad "cached map differs"
 git switch -q -c feature/hook
 printf 'package com.acme.shop.config;\n\nimport com.acme.shop.customers.CustomerRepository;\nimport org.springframework.stereotype.Service;\n\n@Service\npublic class ExtraService {\n    private final CustomerRepository repo;\n    public ExtraService(CustomerRepository r) { this.repo = r; }\n}\n' > src/main/java/com/acme/shop/config/ExtraService.java
-out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/config/ExtraService.java"}}' "$SP2" | CLAUDE_PROJECT_DIR="$SP2" $G --hook)
+out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/config/ExtraService.java"}}' "$(npath "$SP2")" | CLAUDE_PROJECT_DIR="$SP2" $G --hook)
 has "$out" '"hookEventName":"PostToolUse"' "hook answers with PostToolUse context"
 has "$out" "config/ExtraService.java breaks a project rule" "hook names the file and the issue"
 has "$out" "move-cli.mjs config/ExtraService.java customers" "hook suggests the fix (uses customers)"
-out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/orders/OrderDto.java"}}' "$SP2" | CLAUDE_PROJECT_DIR="$SP2" $G --hook); [ -z "$out" ] && ok "hook is silent for a clean file" || bad "hook spoke for a clean file" "$out"
+out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/src/main/java/com/acme/shop/orders/OrderDto.java"}}' "$(npath "$SP2")" | CLAUDE_PROJECT_DIR="$SP2" $G --hook); [ -z "$out" ] && ok "hook is silent for a clean file" || bad "hook spoke for a clean file" "$out"
 out=$(echo 'not json' | CLAUDE_PROJECT_DIR="$SP2" $G --hook); code $? 0 "hook never fails"
 out=$(node scripts/floorplan/move-cli.mjs config/ExtraService.java --fix --apply 2>&1); has "$out" "Fix for services-in-features: move to customers/" "move-cli --fix"
 [ -f src/main/java/com/acme/shop/customers/ExtraService.java ] && ok "--fix moved the class" || bad "--fix did not move"
@@ -683,7 +686,7 @@ out=$($G 2>&1); has "$out" "CLAUDE.md changed since the Floorplan rules were der
 out=$($G --session 2>&1); has "$out" "run /floorplan rules" "session summary mentions the refresh"
 mkdir -p src/app/features/orders/order-notes
 printf "import { Component } from '@angular/core';\n@Component({ selector: 'app-order-notes', template: '' })\nexport class OrderNotesComponent { notes: any[] = []; }\n" > src/app/features/orders/order-notes/order-notes.component.ts
-out=$(printf '{"tool_input":{"file_path":"%s"},"cwd":"%s"}' "$CM/src/app/features/orders/order-notes/order-notes.component.ts" "$CM" | $G --hook 2>&1)
+out=$(printf '{"tool_input":{"file_path":"%s"},"cwd":"%s"}' "$(npath "$CM")/src/app/features/orders/order-notes/order-notes.component.ts" "$(npath "$CM")" | $G --hook 2>&1)
 has "$out" "src/app/features/orders/order-notes/order-notes.component.ts:3: contains the any type (claude-md:no-any, warning; from CLAUDE.md:4" "hook: file:line and CLAUDE.md source"
 has "$out" "How to fix: Use a real type" "hook: how to fix"
 has "$out" "These come from the project's CLAUDE.md" "hook: CLAUDE.md warnings are to be fixed"
