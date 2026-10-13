@@ -1,6 +1,6 @@
 # Floorplan
 
-[![tests](https://github.com/BahaaKayali92/floorplan/actions/workflows/test.yml/badge.svg)](https://github.com/BahaaKayali92/floorplan/actions/workflows/test.yml)
+[![tests](https://github.com/BahaaKiali92/floorplan/actions/workflows/test.yml/badge.svg)](https://github.com/BahaaKiali92/floorplan/actions/workflows/test.yml)
 ![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 
 A Claude Code plugin for **Angular** and **Spring Boot (Java)** repositories that keeps the structure of an app in
@@ -48,11 +48,11 @@ Gradle; no build needed). No other dependencies, no network access (D3 and the f
 **As a plugin** (recommended), in Claude Code:
 
 ```
-/plugin marketplace add BahaaKayali92/floorplan
+/plugin marketplace add BahaaKiali92/floorplan
 /plugin install floorplan@floorplan
 ```
 
-Or from a terminal: `claude plugin marketplace add BahaaKayali92/floorplan` and `claude plugin install floorplan@floorplan`.
+Or from a terminal: `claude plugin marketplace add BahaaKiali92/floorplan` and `claude plugin install floorplan@floorplan`.
 Updates: `claude plugin update floorplan@floorplan`, or turn on auto-update for the marketplace in `/plugin`.
 Once listed in Anthropic's community marketplace: `/plugin marketplace add anthropics/claude-plugins-community`, then
 `/plugin install floorplan@claude-community`.

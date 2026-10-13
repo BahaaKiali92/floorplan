@@ -5,7 +5,7 @@
   "description": "Keeps an Angular or Spring Boot codebase in shape with Claude: a structure map Claude reads for every task, rules for where code lives and what may use what (built-in, presets, and your own CLAUDE.md rules as warnings), clear issues with file, line and how to fix, a bubble graph to move files, classes and packages with imports rewritten, and a CI check that fails only on new issues.",
   "author": {
     "name": "Bahaa Kiali",
-    "url": "https://github.com/BahaaKayali92"
+    "url": "https://github.com/BahaaKiali92"
   },
   "license": "MIT",
   "keywords": [
@@ -24,6 +24,6 @@
     "refactoring",
     "spring-boot"
   ],
-  "homepage": "https://github.com/BahaaKayali92/floorplan",
-  "repository": "https://github.com/BahaaKayali92/floorplan"
+  "homepage": "https://github.com/BahaaKiali92/floorplan",
+  "repository": "https://github.com/BahaaKiali92/floorplan"
 }

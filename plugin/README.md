@@ -17,7 +17,7 @@ Keeps an Angular or Spring Boot codebase in shape when you work with Claude Code
 ## Install
 
 ```
-/plugin marketplace add BahaaKayali92/floorplan
+/plugin marketplace add BahaaKiali92/floorplan
 /plugin install floorplan@floorplan
 ```
 
@@ -30,4 +30,4 @@ it works there too.
 Requirements: Node 18+. Angular projects need `npm install` done; Spring Boot projects need no build. No network
 access, no telemetry.
 
-Documentation, examples and source: https://github.com/BahaaKayali92/floorplan · License: MIT
+Documentation, examples and source: https://github.com/BahaaKiali92/floorplan · License: MIT

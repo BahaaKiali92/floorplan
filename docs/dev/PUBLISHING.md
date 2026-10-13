@@ -2,9 +2,9 @@
 
 ## 1. Rename the GitHub repository (once)
 
-The plugin and marketplace are named `floorplan`; the docs point to `github.com/BahaaKayali92/floorplan`.
+The plugin and marketplace are named `floorplan`; the docs point to `github.com/BahaaKiali92/floorplan`.
 On GitHub: repository **Settings → General → Repository name** → `floorplan`. GitHub redirects the old URL, but
-update your local remote: `git remote set-url origin https://github.com/BahaaKayali92/floorplan.git`.
+update your local remote: `git remote set-url origin https://github.com/BahaaKiali92/floorplan.git`.
 
 ## 2. Release checklist (every version)
 
@@ -20,7 +20,7 @@ update your local remote: `git remote set-url origin https://github.com/BahaaKay
 Teammates then install with:
 
 ```
-/plugin marketplace add BahaaKayali92/floorplan
+/plugin marketplace add BahaaKiali92/floorplan
 /plugin install floorplan@floorplan
 ```
 
@@ -36,7 +36,7 @@ Listed plugins can be installed by anyone with `/plugin marketplace add anthropi
 - Submission form for individuals: <https://platform.claude.com/plugins/submit> (Console).
   For a Team/Enterprise organization (Directory permission, Owners have it): claude.ai → Admin settings → Directory →
   Submissions → Plugins → New.
-- What to enter: repository `https://github.com/BahaaKayali92/floorplan`, plugin path `plugin/`, name `floorplan`,
+- What to enter: repository `https://github.com/BahaaKiali92/floorplan`, plugin path `plugin/`, name `floorplan`,
   the description from `plugin.json`, category development, license MIT, a screenshot (`docs/img/graph-angular.png`).
 - Listed plugins are pinned to a commit. For a new version, submit again (or follow the form's update flow).
 - Check whether it is listed: search for `floorplan` in
