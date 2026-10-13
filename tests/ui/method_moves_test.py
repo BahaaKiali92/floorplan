@@ -6,7 +6,7 @@ errors = []
 
 def center(page, path):
     box = page.evaluate("""(p) => {
-      const n = d3.selectAll('#svg circle').filter(d => d.data.path === p).node();
+      const n = d3.selectAll('#svg .shape').filter(d => d.data.path === p).node();
       if (!n || getComputedStyle(n).display === 'none') return null;
       const r = n.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -31,7 +31,7 @@ with sync_playwright() as p:
     page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto('http://localhost:4321/')
-    page.wait_for_selector('#svg circle'); time.sleep(0.6)
+    page.wait_for_selector('#svg .shape'); time.sleep(0.6)
     click_path(page, 'features'); click_path(page, 'features/orders'); click_path(page, 'features/orders/data-access')
     page.screenshot(path=f'{OUT}/m1-data-access.png')
     click_path(page, SVC)

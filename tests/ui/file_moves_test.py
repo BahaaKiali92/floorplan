@@ -7,7 +7,7 @@ errors = []
 
 def center(page, path):
     box = page.evaluate("""(p) => {
-      const n = d3.selectAll('#svg circle').filter(d => d.data.path === p).node();
+      const n = d3.selectAll('#svg .shape').filter(d => d.data.path === p).node();
       if (!n || getComputedStyle(n).display === 'none') return null;
       const r = n.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -34,7 +34,7 @@ with sync_playwright() as p:
     page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto('http://localhost:4321/')
-    page.wait_for_selector('#svg circle'); time.sleep(0.6)
+    page.wait_for_selector('#svg .shape'); time.sleep(0.6)
     page.screenshot(path=f'{OUT}/01-overview.png')
     if SCHEME == 'dark':
         click_path(page, 'features'); page.screenshot(path=f'{OUT}/02-features.png')
@@ -43,8 +43,7 @@ with sync_playwright() as p:
     click_path(page, 'features'); page.screenshot(path=f'{OUT}/02-features.png')
     click_path(page, 'features/customers'); page.screenshot(path=f'{OUT}/03-customers.png')
     print('crumbs at customers:', page.inner_text('#crumbs').replace('\n', ' '))
-    click_path(page, 'features/customers/customer-list/customer-export.service.ts', 0.5)
-    page.screenshot(path=f'{OUT}/04-file-selected.png')
+    page.screenshot(path=f'{OUT}/04-customers-tiles.png')
 
     # 1) drag and drop between visible folders
     drag(page, center(page, 'features/customers/customer-list/customer-export.service.ts'),
@@ -57,7 +56,11 @@ with sync_playwright() as p:
     print('after move:', page.inner_text('#stats'), '|', page.inner_text('.toast'))
 
     # 2) undo
-    page.click('#undo'); page.wait_for_function("document.querySelector('#stats').innerText.includes('2 issues')"); time.sleep(0.6)
+    page.click('#undo')
+    for _ in range(50):  # the page's CSP forbids eval, so poll instead of wait_for_function
+        if '2 issues' in page.inner_text('#stats'): break
+        time.sleep(0.2)
+    time.sleep(0.6)
     page.screenshot(path=f'{OUT}/08-after-undo.png')
     print('after undo:', page.inner_text('#stats'))
 

@@ -376,6 +376,44 @@ out=$(node scripts/project-map/generate-map.mjs --main 2>&1)
 has "$out" "libs/a/src/lib/a.ts imports libs/b/src/index.ts (a [scope:a] → b [scope:b]: scope:a may only depend on scope:a, scope:shared)" "Nx depConstraints (flat ESLint config)"
 has "$out" "1 violations" "Nx: allowed dependency on shared not reported"
 
+echo "== 17. Graph server: Host, Origin and token checks, file shapes"
+cd "$APP"
+out=$(node - "$APP" <<'JS' 2>&1
+const { spawn } = require('node:child_process');
+const port = 4300 + Math.floor(Math.random() * 500);
+const srv = spawn(process.execPath, ['scripts/project-map/server.mjs', '--port', String(port)], { cwd: process.argv[2], stdio: 'ignore' });
+const base = `http://127.0.0.1:${port}`;
+const st = (path, headers = {}, method = 'GET') => fetch(base + path, { method, headers }).then((r) => r.status).catch(() => 0);
+(async () => {
+  let page = '';
+  for (let i = 0; i < 50 && !page; i++) { await new Promise((r) => setTimeout(r, 200)); page = await fetch(base + '/').then((r) => r.text()).catch(() => ''); }
+  const token = (page.match(/name="pm-token" content="([a-f0-9]+)"/) || [])[1] || '';
+  const csp = await fetch(base + '/').then((r) => r.headers.get('content-security-policy') || '');
+  console.log('token-length', token.length);
+  console.log('csp', csp.includes("default-src 'self'"));
+  console.log('no-token', await st('/api/map'));
+  console.log('with-token', await st('/api/map', { 'x-project-map-token': token }));
+  console.log('wrong-token', await st('/api/map', { 'x-project-map-token': 'x'.repeat(token.length) }));
+  console.log('foreign-origin', await st('/api/undo', { 'x-project-map-token': token, origin: 'http://evil.example' }, 'POST'));
+  // fetch() drops a custom Host header, so use http.request for the rebinding case
+  const hostStatus = await new Promise((res) => require('node:http').get({ host: '127.0.0.1', port, path: '/', headers: { host: `evil.example:${port}` } },
+    (r) => { r.resume(); res(r.statusCode); }).on('error', () => res(0)));
+  console.log('rebound-host', hostStatus);
+  srv.kill();
+})();
+JS
+)
+has "$out" "token-length 48" "server puts a per-start token into the page"
+has "$out" "csp true" "page is served with a Content-Security-Policy"
+has "$out" "no-token 403" "API call without token is refused"
+has "$out" "with-token 200" "API call with token works"
+has "$out" "wrong-token 403" "API call with a wrong token is refused"
+has "$out" "foreign-origin 403" "cross-origin POST is refused (CSRF)"
+has "$out" "rebound-host 403" "unknown Host header is refused (DNS rebinding)"
+ui=$(cat "$TOOLS/ui.html")
+has "$ui" "SHAPE_ANGULAR" "UI has file shapes for Angular kinds"
+has "$ui" "SHAPE_SPRING" "UI has file shapes for Spring kinds"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

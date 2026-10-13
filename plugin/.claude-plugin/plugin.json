@@ -1,7 +1,7 @@
 {
   "name": "project-map",
   "displayName": "Project Map",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Project map for Angular and Spring Boot (Java): a generated structure map Claude reads for every task, an interactive bubble graph to move files, classes and packages (imports rewritten), structure rules checked in CI (only new issues fail), and an impact preview for moving methods between services.",
   "author": {
     "name": "Frontend Team"

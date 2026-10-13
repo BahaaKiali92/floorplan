@@ -15,7 +15,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`, `4-SPRING-BOOT.md`; `experiments/` for measured results. |
 | `sample-app/` | Tiny Angular-shaped app with seeded issues (type stubs instead of real Angular). Used by tests and docs. |
 | `sample-spring-app/` | Small Spring Boot (Maven) app with seeded issues. Compiled in tests with `javac` against `tests/java-stubs/`. |
-| `tests/run.sh` | End-to-end tests on temp copies of both samples (157 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
+| `tests/run.sh` | End-to-end tests on temp copies of both samples (162 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
 | `scripts/` | `sync-plugin.sh`, `build-kit.sh` (→ `dist/project-map-kit.zip`). |
 | `README-KIT.md` | README that goes into the zip kit. |
 | `experiments/` | `run.mjs`: with/without-map comparison with headless Claude Code on any repo. |
@@ -32,7 +32,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `java.mjs` | Java parsing without a compiler: masking, package/imports/types/members, `JavaIndex`, kinds, endpoints, `scanSpring()`. |
 | `java-move.mjs` | Java class/package moves: package lines, imports, same-package use, FQNs, tests along, warnings. |
 | `java-analyze.mjs` | Method-move analysis for Spring beans (same plan shape as `analyze.mjs`). |
-| `server.mjs` + `ui.html` | Local graph server (127.0.0.1) + D3 circle-packing UI (bundled `d3.min.js`). |
+| `server.mjs` + `ui.html` | Local graph server (127.0.0.1; Host/Origin checks + per-start API token) + D3 circle-packing UI with one shape per file kind (bundled `d3.min.js`). |
 | `install-hooks.mjs` | Claude Code SessionStart hook in `.claude/settings.json` + git hooks; idempotent; `--remove`. |
 | `claude-md.mjs` | Writes/updates the marked "Project structure" section in a repo's CLAUDE.md (framework, map path, CI or no-CI, keeps CRLF). |
 | `cache.mjs` | Per-file parse cache (size + mtime) in `.project-map/`. |

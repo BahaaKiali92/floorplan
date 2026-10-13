@@ -4,8 +4,11 @@
 // Then open http://localhost:4321
 //
 // It only listens on 127.0.0.1. Every file move is previewed first, and can be undone.
+// Other websites in the same browser can't use it: requests must come with Host localhost/127.0.0.1:<port>
+// (blocks DNS rebinding), a same-origin Origin header, and a random token that only the page served here knows (CSRF).
 // Method moves are preview-only: the analysis produces a task for Claude, no code is changed.
 import http from 'node:http';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -24,6 +27,9 @@ const repoRoot = process.cwd();
 const ctx = await makeContext(CONFIG);
 const config = ctx.config;
 const history = []; // [{ label, pairs }]
+const TOKEN = crypto.randomBytes(24).toString('hex'); // new on every start; embedded in the page, required by the API
+const allowedHosts = new Set([`localhost:${PORT}`, `127.0.0.1:${PORT}`, `[::1]:${PORT}`]);
+const allowedOrigins = new Set([...allowedHosts].map((h) => `http://${h}`));
 
 function regenerate() {
   // Local map of the working tree + branch report (never touches the committed main map in docs/).
@@ -76,9 +82,23 @@ const readBody = (req) => new Promise((resolve) => {
 
 const server = http.createServer(async (req, res) => {
   try {
+    // DNS rebinding: a foreign domain resolving to 127.0.0.1 still sends its own Host header
+    if (!allowedHosts.has(String(req.headers.host || '').toLowerCase())) return send(res, 403, { errors: ['Forbidden host'] });
     const url = new URL(req.url, 'http://localhost');
+    if (url.pathname.startsWith('/api/')) {
+      // CSRF: other sites can send requests but can't read the page, so they never have the token
+      const origin = req.headers.origin;
+      if (origin && !allowedOrigins.has(origin)) return send(res, 403, { errors: ['Forbidden origin'] });
+      const tok = req.headers['x-project-map-token'] || '';
+      if (tok.length !== TOKEN.length || !crypto.timingSafeEqual(Buffer.from(tok), Buffer.from(TOKEN))) {
+        return send(res, 403, { errors: ['Missing or wrong token: reload the page (the server was restarted).'] });
+      }
+    }
     if (req.method === 'GET' && url.pathname === '/') {
-      return send(res, 200, fs.readFileSync(path.join(here, 'ui.html')), 'text/html; charset=utf-8');
+      const page = fs.readFileSync(path.join(here, 'ui.html'), 'utf8').replace('</head>', `<meta name="pm-token" content="${TOKEN}">\n</head>`);
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-frame-options': 'DENY',
+        'content-security-policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'" });
+      return res.end(page);
     }
     if (req.method === 'GET' && url.pathname === '/vendor/d3.min.js') {
       const local = d3Path();

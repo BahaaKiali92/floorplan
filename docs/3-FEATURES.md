@@ -144,11 +144,25 @@ uses it). The command-line equivalent is `move-cli.mjs <file> --fix`.
 ### What you see
 
 - **Bubbles in bubbles**: folders contain folders and files; the app root is the outer circle.
-- **File colors**: component blue, service green, routes orange, guard/interceptor/resolver purple,
-  pipe/directive teal, state pink, model gray. Legend bottom-left.
+- **File shapes and colors** (so the kind reads without colour too):
+
+  | Angular | Spring Boot | Shape |
+  |---|---|---|
+  | component | controller | rounded square, blue |
+  | service | service, component | hexagon, green |
+  | routes, module | listener | triangle |
+  | guard, interceptor, resolver | | shield, purple |
+  | pipe, directive | DTO, mapper | pill, teal |
+  | store (state) | repository | cylinder |
+  | model | entity | diamond |
+  | config | config, application | octagon |
+  | other | exception, other | small circle, gray |
+
+  Legend bottom-left (it can be hidden).
 - **Bubble size**: files imported by more files are a bit bigger.
 - **Red ring**: the file breaks a rule. Folder labels show `N files · N issues`.
-- **Services** (`@Injectable` classes with methods) are light-green bubbles that contain one bubble per method;
+- **Services** (`@Injectable` classes with methods; in Spring also controllers and beans) keep their shape, drawn
+  larger, and contain one bubble per method;
   private methods have a dashed outline.
 - **Header**: breadcrumb, search, `N files · N issues · N new on branch`, Undo.
 - **Side panel**: details of what's selected (see below).
@@ -301,7 +315,14 @@ Files in `scripts/project-map/`:
 
 ## 7. Local server API
 
-For scripting or debugging. The server listens on 127.0.0.1 only.
+For scripting or debugging. The server listens on 127.0.0.1 only and protects the API against other websites open
+in the same browser:
+
+- requests with a `Host` other than `localhost`/`127.0.0.1`/`[::1]:<port>` get 403 (DNS rebinding);
+- `/api/*` requests with a foreign `Origin` get 403 (CSRF);
+- `/api/*` requests need the header `x-project-map-token`. The token is new on every start and is in the page
+  (`<meta name="pm-token">`); read it from `GET /` when scripting.
+- The page is served with a Content-Security-Policy and `X-Frame-Options: DENY`.
 
 | Method & path | Body | Returns |
 |---|---|---|

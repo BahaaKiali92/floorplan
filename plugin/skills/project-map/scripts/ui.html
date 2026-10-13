@@ -80,27 +80,28 @@ main { flex: 1; display: flex; min-height: 0; }
   background-color: var(--paper);
   background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
   background-size: 64px 64px; }
-#canvas svg { width: 100%; height: 100%; display: block; }
+#canvas #svg { width: 100%; height: 100%; display: block; }
 svg text { pointer-events: none; font-family: var(--label); paint-order: stroke; stroke: var(--paper); stroke-width: 3.5px; stroke-linejoin: round; }
 svg text.on-color { stroke: rgba(0,0,0,.25); stroke-width: 2px; }
-circle.folder { stroke: var(--contour); stroke-width: 1; stroke-opacity: .7; cursor: pointer; }
-circle.file { stroke: rgba(0,0,0,.18); stroke-width: 1; cursor: grab; }
-circle.bad { stroke: var(--border-red) !important; stroke-width: 2.5 !important; stroke-dasharray: 5 3; stroke-opacity: 1 !important; }
-circle.selected { stroke: var(--ink) !important; stroke-width: 2.5 !important; stroke-dasharray: none; stroke-opacity: 1 !important; }
-circle.drop { stroke: var(--water) !important; stroke-width: 3 !important; stroke-dasharray: 7 4; fill: var(--water-soft) !important; }
-circle.drop-same { stroke: var(--ink-2) !important; stroke-width: 2 !important; stroke-dasharray: 3 4; }
-circle.svc { cursor: pointer; }
-circle.method { stroke: var(--k-service); stroke-width: 1.5; cursor: grab; }
-circle.method.priv { stroke-dasharray: 4 3; }
-circle.picked { fill: var(--water-soft) !important; stroke: var(--water) !important; stroke-width: 3 !important; }
+.shape.folder { stroke: var(--contour); stroke-width: 1; stroke-opacity: .7; cursor: pointer; }
+.shape.file { stroke: rgba(0,0,0,.18); stroke-width: 1; cursor: grab; }
+.shape.bad { stroke: var(--border-red) !important; stroke-width: 2.5 !important; stroke-dasharray: 5 3; stroke-opacity: 1 !important; }
+.shape.selected { stroke: var(--ink) !important; stroke-width: 2.5 !important; stroke-dasharray: none; stroke-opacity: 1 !important; }
+.shape.drop { stroke: var(--water) !important; stroke-width: 3 !important; stroke-dasharray: 7 4; fill: var(--water-soft) !important; }
+.shape.drop-same { stroke: var(--ink-2) !important; stroke-width: 2 !important; stroke-dasharray: 3 4; }
+.shape.svc { cursor: pointer; }
+.shape.method { stroke: var(--k-service); stroke-width: 1.5; cursor: grab; }
+.shape.method.priv { stroke-dasharray: 4 3; }
+.shape.picked { fill: var(--water-soft) !important; stroke: var(--water) !important; stroke-width: 3 !important; }
 .edge { fill: none; stroke-width: 2; opacity: .85; pointer-events: none; }
 .edge.out { stroke: var(--water); }
 .edge.in { stroke: var(--warn); }
-.ghost circle { opacity: .85; stroke: var(--ink); stroke-width: 2; }
+.ghost path { opacity: .9; stroke: var(--ink); stroke-width: 2; }
 .ghost text { font-weight: 600; }
 .legend { position: absolute; left: 14px; bottom: 14px; background: var(--sheet); border: 1px solid var(--rule); border-radius: 8px; padding: 9px 12px; font: 500 13px var(--label); box-shadow: var(--shadow); max-width: calc(100% - 28px); }
 .legend .items { display: flex; flex-wrap: wrap; gap: 5px 14px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg.glyph { width: 16px; height: 16px; flex: none; overflow: visible; }
 .legend i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
 .legend .tip { color: var(--ink-2); margin-top: 6px; font-weight: 400; }
 .legend button.toggle { background: none; border: 0; color: var(--ink-2); font: inherit; cursor: pointer; padding: 0; float: right; margin-left: 12px; }
@@ -203,6 +204,47 @@ const KIND_COLOR = {
   exception: 'var(--k-model)', interface: 'var(--k-model)',
 };
 const SPRING = () => DATA && DATA.framework === 'spring';
+// Each file kind has its own shape, so the map reads without colour too (and doesn't look like a petri dish):
+// UI blocks are squares, logic is hexagonal, data stores are cylinders, entry points and routes are triangles,
+// guards are shields, data shapes are diamonds and pills.
+const SHAPE_ANGULAR = { component: 'square', directive: 'pill', pipe: 'pill', service: 'hexagon', guard: 'shield',
+  interceptor: 'shield', resolver: 'shield', routes: 'triangle', module: 'triangle', store: 'cylinder', model: 'diamond',
+  config: 'octagon', other: 'dot' };
+const SHAPE_SPRING = { controller: 'square', service: 'hexagon', component: 'hexagon', repository: 'cylinder', entity: 'diamond',
+  dto: 'pill', mapper: 'pill', listener: 'triangle', config: 'octagon', application: 'octagon', exception: 'dot', model: 'dot',
+  interface: 'dot', annotation: 'dot', other: 'dot' };
+// A file that shows its methods inside keeps its kind's shape, drawn large enough to hold the method bubbles.
+const COVER = { square: 'square-cover', hexagon: 'hexagon-cover', octagon: 'octagon-cover' };
+const shapeOf = (d) => {
+  if (d.data.type === 'folder' || isMethod(d)) return 'circle';
+  const s = (SPRING() ? SHAPE_SPRING : SHAPE_ANGULAR)[d.data.kind] || 'dot';
+  return isService(d) ? COVER[s] || 'circle' : s;
+};
+// path of a shape centred at (x, y) that fits in a circle of radius r
+function shapePath(shape, x, y, r) {
+  if (!(r > 0)) return '';
+  const poly = (pts) => 'M' + pts.map(([a, b]) => `${(x + a).toFixed(1)},${(y + b).toFixed(1)}`).join('L') + 'Z';
+  const ring = (n, rr, rot = 0) => Array.from({ length: n }, (_, i) => { const t = rot + (i * 2 * Math.PI) / n; return [rr * Math.cos(t), rr * Math.sin(t)]; });
+  const rrect = (w, h, c) => `M${x - w + c},${y - h}H${x + w - c}Q${x + w},${y - h} ${x + w},${y - h + c}V${y + h - c}Q${x + w},${y + h} ${x + w - c},${y + h}H${x - w + c}Q${x - w},${y + h} ${x - w},${y + h - c}V${y - h + c}Q${x - w},${y - h} ${x - w + c},${y - h}Z`;
+  switch (shape) {
+    case 'circle': return `M${x - r},${y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
+    case 'dot': { const q = r * 0.78; return `M${x - q},${y}a${q},${q} 0 1,0 ${2 * q},0a${q},${q} 0 1,0 ${-2 * q},0`; }
+    case 'square': { const a = r * 0.76; return rrect(a, a, a * 0.22); }
+    case 'pill': { const w = r * 0.95, h = r * 0.55; return rrect(w, h, h); }
+    case 'hexagon': return poly(ring(6, r * 0.96, 0));
+    case 'hexagon-cover': return poly(ring(6, r * 1.1, 0));
+    case 'octagon-cover': return poly(ring(8, r * 1.06, Math.PI / 8));
+    case 'square-cover': { const a = r * 0.97; return rrect(a, a, a * 0.4); }
+    case 'octagon': return poly(ring(8, r * 0.95, Math.PI / 8));
+    case 'diamond': return poly([[0, -r * 0.98], [r * 0.82, 0], [0, r * 0.98], [-r * 0.82, 0]]);
+    case 'triangle': return poly([[0, -r * 0.92], [r * 0.9, r * 0.66], [-r * 0.9, r * 0.66]]);
+    case 'shield': return `M${x},${y - r * 0.9}L${x + r * 0.78},${y - r * 0.55}V${y + r * 0.05}Q${x + r * 0.7},${y + r * 0.62} ${x},${y + r * 0.95}Q${x - r * 0.7},${y + r * 0.62} ${x - r * 0.78},${y + r * 0.05}V${y - r * 0.55}Z`;
+    case 'cylinder': { const w = r * 0.74, h = r * 0.82, e = r * 0.2;
+      return `M${x - w},${y - h + e}A${w},${e} 0 0,1 ${x + w},${y - h + e}V${y + h - e}A${w},${e} 0 0,1 ${x - w},${y + h - e}Z`
+        + `M${x - w},${y - h + e}A${w},${e} 0 0,0 ${x + w},${y - h + e}`; }
+    default: return `M${x - r},${y}a${r},${r} 0 1,0 ${2 * r},0a${r},${r} 0 1,0 ${-2 * r},0`;
+  }
+}
 // Spring "component" is a plain bean (grey); Angular "component" is UI (blue)
 const kindColor = (k) => (SPRING() && k === 'component' ? 'var(--k-other)' : KIND_COLOR[k] || KIND_COLOR.other);
 const FOLDER_FILL = ['transparent', 'var(--e1)', 'var(--e2)', 'var(--e3)', 'var(--e4)']; // elevation tints
@@ -223,8 +265,9 @@ const isServiceFile = (d) => d && d.data.type === 'file' && !!(DATA.services || 
 const isContainer = (d) => d && (d.data.type === 'folder' || isService(d));
 
 // ---------- data ----------
+const TOKEN = (document.querySelector('meta[name="pm-token"]') || {}).content || '';
 async function api(method, url, body) {
-  const r = await fetch(url, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const r = await fetch(url, { method, headers: { 'content-type': 'application/json', 'x-project-map-token': TOKEN }, body: body ? JSON.stringify(body) : undefined });
   const json = await r.json();
   if (!r.ok) throw new Error((json.errors || ['Request failed']).join('\n'));
   return json;
@@ -311,8 +354,8 @@ function interactive(d) { return d !== root && isInFocus(d) && d.depth > focus.d
 
 function render() {
   const nodes = root.descendants().filter((d) => d !== root);
-  gCircles.selectAll('circle').data(nodes, (d) => d.data.path).join('circle')
-    .attr('class', (d) => [d.data.type, isService(d) ? 'svc' : '', isMethod(d) && d.data.visibility !== 'public' ? 'priv' : '',
+  gCircles.selectAll('path.shape').data(nodes, (d) => d.data.path).join('path')
+    .attr('class', (d) => ['shape', d.data.type, isService(d) ? 'svc' : '', isMethod(d) && d.data.visibility !== 'public' ? 'priv' : '',
       d.data.type === 'file' && d.violations.length ? 'bad' : '', d === selected ? 'selected' : ''].join(' '))
     .attr('fill', (d) => isMethod(d) ? 'var(--sheet)'
       : isService(d) ? `color-mix(in srgb, ${kindColor(d.data.kind)} 18%, var(--sheet))`
@@ -333,7 +376,7 @@ function render() {
 
 function applyVisibility() {
   gContours.selectAll('circle').style('display', (d) => (visibleDepth(d) && d.depth <= focus.depth + 2 ? null : 'none'));
-  gCircles.selectAll('circle')
+  gCircles.selectAll('path.shape')
     .style('display', (d) => (visibleDepth(d) ? null : 'none'))
     .style('opacity', (d) => (d.depth > focus.depth + 2 ? 0.7 : 1))
     .style('pointer-events', (d) => (interactive(d) ? null : 'none'))
@@ -350,10 +393,8 @@ function labelText(d) {
 function zoomTo(v) {
   view = v;
   const k = Math.min(W, H) / v[2];
-  gCircles.selectAll('circle')
-    .attr('cx', (d) => (d.x - v[0]) * k + W / 2)
-    .attr('cy', (d) => (d.y - v[1]) * k + H / 2)
-    .attr('r', (d) => Math.max(0, d.r * k));
+  gCircles.selectAll('path.shape')
+    .attr('d', (d) => shapePath(shapeOf(d), (d.x - v[0]) * k + W / 2, (d.y - v[1]) * k + H / 2, Math.max(0, d.r * k)));
   gContours.selectAll('circle')
     .attr('cx', (d) => (d.x - v[0]) * k + W / 2)
     .attr('cy', (d) => (d.y - v[1]) * k + H / 2)
@@ -502,18 +543,18 @@ const drag = d3.drag()
       const r = Math.min(40, Math.max(14, d.r * k));
       gGhost.selectAll('*').remove();
       const ms = dragState.methods;
-      gGhost.append('circle').attr('r', ms ? 18 : r).attr('fill', ms ? 'var(--water-soft)' : d.data.type === 'file' ? kindColor(d.data.kind) : 'var(--e3)');
+      gGhost.append('path').attr('d', shapePath(ms ? 'pill' : shapeOf(d), 0, 0, ms ? 22 : r)).attr('fill', ms ? 'var(--water-soft)' : d.data.type === 'file' ? kindColor(d.data.kind) : 'var(--e3)');
       gGhost.append('text').attr('y', (ms ? 18 : r) + 16).attr('text-anchor', 'middle').attr('font-size', 13).attr('fill', 'var(--ink)')
         .text(ms ? (ms.length === 1 ? ms[0] + '()' : `${ms.length} methods`) : labelText(d));
     }
     gGhost.attr('transform', `translate(${event.x},${event.y})`);
     const t = folderAt(event.x, event.y, d, event.sourceEvent, !!dragState.methods);
     dragState.target = t;
-    gCircles.selectAll('circle').classed('drop', (c) => c === t && t !== d.parent).classed('drop-same', (c) => c === t && t === d.parent);
+    gCircles.selectAll('path.shape').classed('drop', (c) => c === t && t !== d.parent).classed('drop-same', (c) => c === t && t === d.parent);
   })
   .on('end', (event, d) => {
     gGhost.selectAll('*').remove();
-    gCircles.selectAll('circle').classed('drop', false).classed('drop-same', false);
+    gCircles.selectAll('path.shape').classed('drop', false).classed('drop-same', false);
     document.querySelectorAll('#crumbs button').forEach((b) => b.classList.remove('drop'));
     const t = dragState && dragState.target;
     const moved = dragState && dragState.moved;
@@ -715,7 +756,7 @@ function legend() {
     : [['component', 'Component'], ['service', 'Service'], ['routes', 'Routes'], ['guard', 'Guard / interceptor'],
       ['pipe', 'Pipe / directive'], ['store', 'State'], ['model', 'Model']];
   const el = document.getElementById('legend');
-  el.innerHTML = `<button class="toggle" type="button">Hide</button><div class="items">` + items.map(([k, l]) => `<span><i style="background:${kindColor(k)}"></i>${l}</span>`).join('') +
+  el.innerHTML = `<button class="toggle" type="button">Hide</button><div class="items">` + items.map(([k, l]) => `<span><svg class="glyph" viewBox="-9 -9 18 18" aria-hidden="true"><path d="${shapePath(shapeOf({ data: { type: 'file', kind: k } }), 0, 0, 8)}" fill="${kindColor(k)}"/></svg>${l}</span>`).join('') +
     `<span><i style="border:2px dashed var(--border-red);width:12px;height:12px"></i>Rule issue</span>` +
     `<span><i style="border:2px solid var(--k-service);background:var(--sheet);width:12px;height:12px"></i>Method (dashed: private)</span>` +
     `</div><div class="tip">Click to drill down. Drag onto a ${SPRING() ? 'package' : 'folder'} or a breadcrumb to move. Open a service to move its methods.</div>`;

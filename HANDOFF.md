@@ -1,10 +1,10 @@
-# Handoff: where project-map stands (2026-10-13, v0.7.0)
+# Handoff: where project-map stands (2026-10-13, v0.8.0)
 
 Read `CLAUDE.md` first for the layout and working rules. This file says what is done and what comes next.
 
 ## Status
 
-- Version 0.7.0: Angular and Spring Boot (Java). All 157 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
+- Version 0.8.0: Angular and Spring Boot (Java). All 162 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
   `SHERIFF_PKG` for the Sheriff tests);
   Playwright UI tests in `tests/ui/` (Angular and `spring_test.py`).
 - Spring Boot (0.5.0): map with kinds from annotations, HTTP endpoints and listeners, kind-based rules
@@ -21,6 +21,7 @@ Read `CLAUDE.md` first for the layout and working rules. This file says what is 
   and Sheriff as a rule source.
 - 0.7.0: edit-check hook, fix suggestions + Fix buttons, PR comment, split map + cache, Nx + ArchUnit rules,
   experiments/run.mjs, graph redesign, Linux + Windows CI (first Windows run not yet seen: check the Actions tab).
+- 0.8.0: one shape per file kind in the graph; graph server hardened (Host/Origin checks, per-start token, CSP).
 - Spring Boot: tested on petclinic, buckpal, Apache Fineract; not yet on a company project.
 
 ## Decisions so far

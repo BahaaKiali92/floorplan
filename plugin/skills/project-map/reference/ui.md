@@ -9,7 +9,8 @@ are stopped after a while (and when the session ends); the undo history lives in
      `node scripts/project-map/server.mjs --port <port>`.
    - **Longer session** (moving many files, a refactoring afternoon): don't start it; tell the user to run it in their
      own terminal so it survives Claude sessions: `npm run map:ui` (Angular) or `node scripts/project-map/server.mjs`.
-3. After a second, check it answers: `curl -s -o /dev/null -w "%{http_code}" http://localhost:<port>/api/map`.
+3. After a second, check it answers: `curl -s -o /dev/null -w "%{http_code}" http://localhost:<port>/` (200). The `/api/*` routes
+   answer 403 without the page's token; that is expected.
    If the port is taken, try the next one.
 4. Tell the user in four short lines:
    - Open http://localhost:<port>

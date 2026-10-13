@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 (2026-10-13)
+
+- Graph: every file kind has its own shape in the bubble layout (component/controller = rounded square,
+  service = hexagon, guard = shield, routes/listener = triangle, store/repository = cylinder, model/entity = diamond,
+  pipe/directive/DTO = pill, config = octagon). Services and controllers keep their shape when they show their methods.
+  The legend shows the shapes.
+- Security: the graph server rejects unknown `Host` headers (DNS rebinding) and foreign `Origin`s, and every API call
+  needs a token that is new on each start (CSRF). The page gets a Content-Security-Policy and `X-Frame-Options: DENY`.
+
 ## 0.7.0 (2026-10-13)
 
 - Edit check: a PostToolUse hook tells Claude right after it writes a file that breaks a rule, with the fix
