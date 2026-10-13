@@ -16,7 +16,7 @@ ok()   { PASS=$((PASS + 1)); LAST="$1"; echo "  ✓ $1"; }
 bad()  { FAIL=$((FAIL + 1)); echo "  ✗ $1"; [ -n "${2:-}" ] && echo "$2" | sed 's/^/      /' | head -20
          # GitHub Actions: show each failure as an annotation on the run and the pull request
          # (title: %, :, comma and newlines must be escaped, or GitHub drops the annotation)
-         if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$(printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's/,/%2C/g')" "$(printf '%s' "${2:-}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }
+         if [ -n "${GITHUB_ACTIONS:-}" ]; then printf '::error title=%s::%s\n' "$(printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's/,/%2C/g')" "$(printf '%s' "${2:-(no output)}" | head -12 | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')"; fi; }  # an empty message drops the annotation
 # issue lines show "path:line  detail"; most checks look at the detail, so they also match with the line number removed
 norm() { sed -E 's#(\.(ts|java))(:[0-9]+)(`?)( +)#\1\4 #g' <<<"$1"; }
 has()  { if grep -qF -- "$2" <<<"$1" || grep -qF -- "$2" <<<"$(norm "$1")"; then ok "$3"; else bad "$3" "$1"; fi; }

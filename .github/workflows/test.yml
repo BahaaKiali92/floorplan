@@ -46,5 +46,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          body="$(printf '**%s**\n\n```\n%s\n```' "${{ matrix.os }}" "$(grep -E -A14 '^  ✗|^== |Passed:|unbound|error' "$RUNNER_TEMP/test-output.log" | tail -150)")"
+          body="$(printf '**%s**\n\n```\n%s\n```' "${{ matrix.os }}" "$(grep -E -A12 '^  ✗|unbound variable|Passed:' "$RUNNER_TEMP/test-output.log" | grep -v '^::error' | head -200)")"
           gh api "repos/${{ github.repository }}/commits/${{ github.sha }}/comments" -f body="$body" >/dev/null

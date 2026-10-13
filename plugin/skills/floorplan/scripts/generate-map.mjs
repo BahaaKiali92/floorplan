@@ -148,7 +148,14 @@ if (args.includes('--outputs')) {
 }
 const ROOT = path.resolve(config.root);
 if (HOOK && !fs.existsSync(path.resolve(configPath))) process.exit(0); // not a mapped project
-if (HOOK && !path.resolve(HOOK_FILE).startsWith(ROOT + path.sep)) process.exit(0);
+// the hook's file as a path under ROOT; real paths on both sides (Windows: short 8.3 vs long folder names)
+const HOOK_REL = (() => {
+  if (!HOOK) return null;
+  const real = (p) => { try { return fs.realpathSync.native(p); } catch { return p; } };
+  const r = path.relative(real(ROOT), real(path.resolve(HOOK_FILE)));
+  return r && !r.startsWith('..') && !path.isAbsolute(r) ? r.split(path.sep).join('/') : null;
+})();
+if (HOOK && !HOOK_REL) process.exit(0);
 if (!fs.existsSync(ROOT)) {
   if (SESSION || HOOK) process.exit(0);
   console.error(`Root folder not found: ${config.root}`);
@@ -1697,7 +1704,7 @@ function branchMarkdown(r) {
   return L.join('\n');
 }
 if (HOOK) {
-  const me = rel(path.resolve(HOOK_FILE));
+  const me = HOOK_REL;
   const mine = (report.available ? report.newIssues : violations).filter((v) => v.file === me);
   if (!mine.length) process.exit(0);
   const lines = [`floorplan: ${me} breaks ${mine.length === 1 ? 'a project rule' : `${mine.length} project rules`}${report.available ? ' (new on this branch)' : ''}:`];
