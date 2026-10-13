@@ -23,12 +23,12 @@ steps:
     inputs:
       versionSpec: '22.x'
 
-  - script: npm run map:check
+  - script: node scripts/project-map/generate-map.mjs --check
     displayName: Project map check (only new issues fail)
     condition: eq(variables['Build.Reason'], 'PullRequest')
 
   - script: |
-      npm run map:main
+      node scripts/project-map/generate-map.mjs --main
       if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
         git config user.name "project-map-bot"
         git config user.email "project-map-bot@example.com"
@@ -40,6 +40,6 @@ steps:
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
 
 # Alternative if CI may not push to main: publish the map as a build artifact instead of committing it,
-# and let developers keep the committed map current with `npm run map:main` in a periodic small PR.
+# and let developers keep the committed map current with `node scripts/project-map/generate-map.mjs --main` in a periodic small PR.
 #  - publish: docs
 #    artifact: project-map

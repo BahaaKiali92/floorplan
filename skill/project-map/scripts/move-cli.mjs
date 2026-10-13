@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Move a file (with its .html/.scss/.spec companions) or a folder, and rewrite every import.
-// Same engine as the bubble graph. Paths are relative to the app root (config "root", usually src/app).
+// Move a file (Angular: with its .html/.scss/.spec companions; Java: with its tests) or a folder/package, and rewrite every import.
+// Same engine as the bubble graph. Paths are relative to the map root (config "root": Angular usually src/app, Spring the base package folder).
 //
 //   node scripts/project-map/move-cli.mjs <source> <target-folder>            # dry run: prints the plan
 //   node scripts/project-map/move-cli.mjs <source> <target-folder> --apply    # moves files, rewrites imports, regenerates the map

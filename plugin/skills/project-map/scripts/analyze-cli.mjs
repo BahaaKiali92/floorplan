@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Analyze moving methods from one Angular service to another (or to a new service). Changes nothing.
+// Analyze moving methods from one service to another (or to a new one). Angular services and Spring beans. Changes nothing.
 //
 //   node scripts/project-map/analyze-cli.mjs --list
 //   node scripts/project-map/analyze-cli.mjs --source <service.ts> --methods a,b --target-file <other.service.ts>
 //   node scripts/project-map/analyze-cli.mjs --source <service.ts> --methods a,b --target-folder <folder> --class NewNameService
 //   add --json for the full plan (callers, helpers, decisions, dependency direction)
-// Paths are relative to the app root (config "root", usually src/app).
+// Paths are relative to the map root (config "root": Angular usually src/app, Spring the base package folder).
 import { makeContext } from './lib.mjs';
 import { listServices, analyzeMethodMove } from './analyze.mjs';
 

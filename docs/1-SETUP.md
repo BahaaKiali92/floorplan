@@ -1,6 +1,7 @@
 # 1 · Setup
 
 How to install the `project-map` skill on a laptop and set it up in an Angular repository.
+Spring Boot (Java) projects: the install is the same; the differences in setup are in [4-SPRING-BOOT.md](4-SPRING-BOOT.md).
 
 Contents:
 1. [What's in the zip](#1-whats-in-the-zip)
@@ -27,6 +28,7 @@ project-map-kit/
     1-SETUP.md              this file
     2-VALIDATION.md         how the checks work, and how to verify the installation
     3-FEATURES.md           every feature in detail
+    4-SPRING-BOOT.md        Spring Boot (Java): setup, rules, moves, method moves, walkthrough
   skill/project-map/        THE SKILL (copy this folder)
     SKILL.md                entry point Claude reads; routes /project-map subcommands
     reference/              step-by-step guides Claude loads on demand (setup, ui, move, move-methods)
@@ -34,6 +36,8 @@ project-map-kit/
     templates/              starting config, CLAUDE.md section, CI templates (ci/)
   plugin-marketplace/       the same skill packaged as a Claude Code plugin (optional)
   sample-app/               tiny Angular-shaped app with seeded problems, for validation
+  sample-spring-app/        small Spring Boot (Maven) app with seeded problems
+  java-stubs/               tiny Spring/JPA/JUnit/Mockito stand-ins to compile the Spring sample with javac
 ```
 
 ## 2. Requirements
@@ -43,6 +47,7 @@ project-map-kit/
 | Claude Code (CLI, desktop or IDE extension) | runs the skill | `claude --version` |
 | Node.js 18 or newer | runs the tools | `node --version` |
 | An Angular project with `npm install` done | the method analysis uses the project's own TypeScript | `ls node_modules/typescript` |
+| or a Spring Boot project (Maven or Gradle, Java) | nothing to install: the tools read the Java code directly | `ls src/main/java` |
 | git (recommended) | file moves use `git mv` so history is kept; undo via git | `git --version` |
 
 No internet access is needed. Nothing is sent anywhere: the tools only read and write files in your repository,

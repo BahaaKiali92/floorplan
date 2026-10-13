@@ -1,6 +1,6 @@
-# Project Map for Claude Code (Angular)
+# Project Map for Claude Code (Angular and Spring Boot)
 
-A Claude Code skill for Angular repositories:
+A Claude Code skill for Angular and Spring Boot (Java) repositories:
 
 - **Structure map** Claude reads for every task (`docs/PROJECT_MAP.md`), with folder purposes and rules.
 - **Main map + branch report**: CI regenerates the main map after every merge (no merge conflicts); on each branch a
@@ -14,8 +14,8 @@ A Claude Code skill for Angular repositories:
   folder. The TypeScript compiler finds callers, template uses, test mocks, helpers and state that move along,
   shared state, and circular dependencies. You get a precise task that Claude then carries out.
 
-Requirements: Claude Code, Node 18+, an Angular project with `npm install` done. No other dependencies, no network
-access needed (D3 is bundled).
+Requirements: Claude Code, Node 18+, and an Angular project with `npm install` done or a Spring Boot project (Maven or
+Gradle, Java; no build needed). No other dependencies, no network access needed (D3 is bundled).
 
 ## Documentation
 
@@ -24,8 +24,10 @@ access needed (D3 is bundled).
 | [docs/1-SETUP.md](docs/1-SETUP.md) | installing the skill (3 ways), setting up a repository, the config file, CI, updating, uninstalling, company rollout, troubleshooting |
 | [docs/2-VALIDATION.md](docs/2-VALIDATION.md) | how the rules, `map:check`, move safety checks and method analysis work, exit codes, and a step-by-step check of your installation with `sample-app/` |
 | [docs/3-FEATURES.md](docs/3-FEATURES.md) | every feature: skill commands, the map, the bubble graph, moving files, moving methods, CLIs, server API, limits |
+| [docs/4-SPRING-BOOT.md](docs/4-SPRING-BOOT.md) | Spring Boot (Java): setup, kinds and rules, class/package moves, method moves between beans, walkthrough with `sample-spring-app/` |
 
-Start with 1, then run the walkthrough in 2 (part B) on `sample-app/` before using a company project.
+Start with 1, then run the walkthrough in 2 (part B) on `sample-app/` (or 4, section 8, on `sample-spring-app/`)
+before using a company project.
 
 ## Install on a laptop (pick one)
 
@@ -66,7 +68,7 @@ Bump `version` in `plugins/project-map/.claude-plugin/plugin.json` for each rele
 
 ## Use it
 
-In an Angular repository, in Claude Code:
+In an Angular or Spring Boot repository, in Claude Code:
 
 | Command | What happens |
 |---|---|
@@ -87,7 +89,7 @@ Without Claude: `npm run map` (local + branch report), `npm run map:main` (CI), 
 
 ## Known limits
 
-- Angular only for now (Spring Boot is a planned next step).
+- Angular and Spring Boot (Java). Not yet: Kotlin, React, Vue.
 - Relative `@use`/`@import` paths inside moved `.scss` files are not rewritten; the preview warns about them.
 - Undo in the graph lasts while the server runs; after that use git.
 - The rules engine is simple (`noImport`, `placement`). Projects already using Nx module boundaries or Sheriff can keep

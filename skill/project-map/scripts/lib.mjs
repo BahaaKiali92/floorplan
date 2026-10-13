@@ -5,20 +5,35 @@ import { pathToFileURL } from 'node:url';
 
 export const toPosix = (p) => p.split(path.sep).join('/');
 
+export function detectFramework(dir = process.cwd()) {
+  const has = (f) => fs.existsSync(path.join(dir, f));
+  if (has('angular.json')) return 'angular';
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    if ({ ...pkg.dependencies, ...pkg.devDependencies }['@angular/core']) return 'angular';
+  } catch { /* no package.json */ }
+  if (['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'].some(has)) return 'spring';
+  return 'angular';
+}
+
 export async function loadConfig(configPath = 'project-map.config.mjs') {
   const abs = path.resolve(configPath);
   const user = fs.existsSync(abs) ? (await import(pathToFileURL(abs).href + `?t=${Date.now()}`)).default : {};
+  const framework = user.framework || detectFramework();
   const config = {
-    root: 'src/app',
+    framework,
+    root: framework === 'spring' ? 'src/main/java' : 'src/app',
     tsconfig: 'tsconfig.json',
     folders: {},
     rules: [],
     output: { markdown: 'docs/PROJECT_MAP.md', json: 'docs/project-map.json', local: '.project-map' },
     ...user,
   };
+  config.framework = framework;
   config.output = { markdown: 'docs/PROJECT_MAP.md', json: 'docs/project-map.json', local: '.project-map', ...(user.output || {}) };
-  // Files outside the app root (main.ts, test setup) can import app files, so they are scanned too.
-  config.scanRoot = user.scanRoot || path.dirname(config.root);
+  // Files outside the app root can use app files, so they are scanned too:
+  // Angular: main.ts, test setup (the parent of root). Java: the whole project (tests, other modules).
+  config.scanRoot = user.scanRoot || (framework === 'spring' ? '.' : path.dirname(config.root));
   return config;
 }
 
@@ -117,10 +132,11 @@ export async function makeContext(configPath = 'project-map.config.mjs') {
   const config = await loadConfig(configPath);
   return {
     config,
+    framework: config.framework,
     repoRoot: process.cwd(),
     appRoot: path.resolve(config.root),
     scanRoot: path.resolve(config.scanRoot),
-    aliases: loadAliases(config.tsconfig),
+    aliases: config.framework === 'spring' ? [] : loadAliases(config.tsconfig),
     preferAliases: config.preferAliases !== false,
   };
 }

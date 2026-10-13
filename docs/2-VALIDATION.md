@@ -7,6 +7,10 @@ Two meanings of "validation", both covered here:
 - **Part B: validating the installation**: a 15-minute walkthrough on the included `sample-app/` with the exact
   results you should see. Do this on the new laptop before using a company project.
 
+Spring Boot: the rule fields for kinds (`fromKinds`, `toKinds`, `kinds`, `exceptFrom`), the warnings of a Java move,
+the Spring decisions of the method analysis and a walkthrough with `sample-spring-app/` are in
+[4-SPRING-BOOT.md](4-SPRING-BOOT.md).
+
 Contents:
 - A1. [Overview of all checks](#a1-overview-of-all-checks)
 - A2. [Structure rules](#a2-structure-rules)

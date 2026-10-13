@@ -1,4 +1,5 @@
 // Method-level analysis for Angular services, using the project's own TypeScript compiler.
+// (Spring Boot / Java: java-analyze.mjs, same result shape.)
 // - listServices(): every @Injectable class with its methods, fields and injected dependencies
 // - analyzeMethodMove(): what happens if some methods move to another (or a new) service:
 //   callers, helpers and state that move along, shared members that need a decision,
@@ -8,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { toPosix, walk } from './lib.mjs';
+import { listServicesJava, analyzeMethodMoveJava } from './java-analyze.mjs';
 
 // ---------- TypeScript from the project ----------
 let tsCache = null;
@@ -121,6 +123,7 @@ function findServiceClass(ts, file) {
 
 // Lightweight listing for the graph: every injectable class and its methods (no type checking).
 export function listServices(ctx) {
+  if (ctx.framework === 'spring') return listServicesJava(ctx);
   const ts = loadTypeScript(ctx.repoRoot);
   const out = {};
   for (const file of walk(ctx.appRoot).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts') && !f.endsWith('.d.ts'))) {
@@ -178,6 +181,7 @@ const esc = (s) => s.replace(/[.*+?^${}()|[\]\\#]/g, '\\$&');
 // req: { source: 'features/orders/data-access/orders.service.ts', methods: ['exportCsv', ...],
 //        target: { file: 'core/...service.ts' } | { folder: 'features/orders/data-access', className: 'OrderExportService' } }
 export function analyzeMethodMove(ctx, req) {
+  if (ctx.framework === 'spring') return analyzeMethodMoveJava(ctx, req);
   const ts = loadTypeScript(ctx.repoRoot);
   const srcFile = path.resolve(ctx.appRoot, req.source);
   if (!fs.existsSync(srcFile)) return { errors: [`Service not found: ${req.source}`] };
@@ -357,7 +361,7 @@ function claudeTask(p) {
   L.push('', 'Rules:');
   L.push('- Do not change what the methods do. Only move them and rewire injection.');
   L.push('- Work on a new branch. Run the type check and the unit tests for the affected files, and fix failures.');
-  L.push('- Then run npm run map and npm run map:check.');
+  L.push('- Then run npm run map and npm run map:check (or node scripts/project-map/generate-map.mjs, with --check).');
   L.push('- Finish with a short summary of the changed files.');
   return L.join('\n');
 }

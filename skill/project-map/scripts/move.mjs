@@ -1,14 +1,17 @@
 // Move engine: moves a file (with its .html/.scss/.spec companions) or a whole folder,
 // and rewrites every import that points to the moved files or out of them.
-// Handles relative imports, tsconfig path aliases, lazy import(), templateUrl/styleUrl(s).
+// Angular: relative imports, tsconfig path aliases, lazy import(), templateUrl/styleUrl(s).
+// Spring (Java): see java-move.mjs (package declarations, imports, same-package use, tests move along).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { toPosix, resolveSpec, walk } from './lib.mjs';
+import { mappingForMoveJava, planFromPairsJava } from './java-move.mjs';
 
 // ---------- building the file mapping ----------
 
 export function mappingForMove(ctx, sourceRel, targetFolderRel) {
+  if (ctx.framework === 'spring') return mappingForMoveJava(ctx, sourceRel, targetFolderRel);
   const { appRoot } = ctx;
   const src = path.resolve(appRoot, sourceRel);
   const target = path.resolve(appRoot, targetFolderRel || '.');
@@ -86,6 +89,7 @@ function relUrl(newFrom, newTarget) {
 }
 
 export function planFromPairs(ctx, pairs) {
+  if (ctx.framework === 'spring') return planFromPairsJava(ctx, pairs);
   const map = new Map(pairs.map((p) => [p.from, p.to]));
   const edits = [];
   const warnings = [];
@@ -179,8 +183,11 @@ export function applyPlan(ctx, plan) {
   for (const e of plan.edits) fs.writeFileSync(e.newFile, e.content);
   // 3) remove folders left empty
   const dirs = [...new Set(plan.pairs.map((p) => path.dirname(p.from)))].sort((a, b) => b.length - a.length);
+  // never above the app root, the project, or a Java source folder (src/main/java, src/test/java)
+  const removable = (d) => (d.startsWith(ctx.appRoot + path.sep) || (ctx.framework === 'spring' && d.startsWith(ctx.scanRoot + path.sep)))
+    && !/[\\/]src[\\/][^\\/]+[\\/]java$/.test(d) && !/[\\/]src$/.test(d);
   for (let dir of dirs) {
-    while (dir.startsWith(ctx.appRoot + path.sep) && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
+    while (removable(dir) && fs.existsSync(dir) && fs.readdirSync(dir).length === 0) {
       fs.rmdirSync(dir);
       dir = path.dirname(dir);
     }

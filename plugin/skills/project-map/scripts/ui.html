@@ -156,7 +156,12 @@ const KIND_COLOR = {
   guard: 'var(--k-guard)', interceptor: 'var(--k-guard)', resolver: 'var(--k-guard)',
   pipe: 'var(--k-pipe)', directive: 'var(--k-pipe)', store: 'var(--k-store)',
   model: 'var(--k-model)', config: 'var(--k-other)', module: 'var(--k-routes)', other: 'var(--k-other)',
+  // Spring Boot (Java)
+  controller: 'var(--k-component)', repository: 'var(--k-routes)', entity: 'var(--k-store)', dto: 'var(--k-pipe)',
+  mapper: 'var(--k-pipe)', listener: 'var(--k-guard)', component: 'var(--k-other)', application: 'var(--k-guard)',
+  exception: 'var(--k-model)', interface: 'var(--k-model)',
 };
+const SPRING = () => DATA && DATA.framework === 'spring';
 const FOLDER_FILL = ['transparent', 'var(--f1)', 'var(--f2)', 'var(--f3)', 'var(--f4)'];
 const svg = d3.select('#svg');
 const layer = svg.append('g');
@@ -211,6 +216,18 @@ function buildHierarchy(data) {
     }
     ensure(dir).children.push(node);
   }
+  // a folder with only one subfolder and no files becomes one bubble: src/main/java/com/acme
+  const collapse = (node) => {
+    for (const c of node.children || []) {
+      if (c.type !== 'folder') continue;
+      while (c.children.length === 1 && c.children[0].type === 'folder') {
+        const only = c.children[0];
+        c.name = `${c.name}/${only.name}`; c.path = only.path; c.children = only.children;
+      }
+      collapse(c);
+    }
+  };
+  collapse(rootNode);
   const h = d3.hierarchy(rootNode)
     .sum((d) => d.type === 'method' ? 0.45 + Math.min(d.lines || 1, 30) / 40
       : d.type === 'file' ? (d.children ? 0 : 1 + Math.min((importedBy.get(d.path) || []).length, 6) * 0.3)
@@ -227,7 +244,9 @@ function buildHierarchy(data) {
 }
 
 function load(data, keepFocusPath, selectPath) {
+  const first = !DATA;
   DATA = data;
+  if (first) legend();
   root = buildHierarchy(data);
   byPath = new Map(root.descendants().map((d) => [d.data.path, d]));
   focus = byPath.get(keepFocusPath) || root;
@@ -252,7 +271,7 @@ function render() {
     .attr('class', (d) => [d.data.type, isService(d) ? 'svc' : '', isMethod(d) && d.data.visibility !== 'public' ? 'priv' : '',
       d.data.type === 'file' && d.violations.length ? 'bad' : '', d === selected ? 'selected' : ''].join(' '))
     .attr('fill', (d) => isMethod(d) ? 'var(--surface)'
-      : isService(d) ? 'color-mix(in srgb, var(--k-service) 20%, var(--surface))'
+      : isService(d) ? `color-mix(in srgb, ${KIND_COLOR[d.data.kind] || 'var(--k-service)'} 20%, var(--surface))`
       : d.data.type === 'file' ? KIND_COLOR[d.data.kind] || KIND_COLOR.other : FOLDER_FILL[Math.min(d.depth, 4)])
     .on('click', onClick)
     .call(drag);
@@ -278,7 +297,7 @@ function applyVisibility() {
 function labelText(d) {
   if (d.data.type === 'folder') return d.data.name + '/';
   if (isMethod(d)) return d.data.label;
-  return d.data.label.replace(/\.ts$/, '');
+  return d.data.label.replace(/\.(ts|java)$/, '');
 }
 
 function zoomTo(v) {
@@ -483,7 +502,7 @@ function isAncestorOf(a, b) { let n = b.parent; while (n) { if (n === a) return 
 
 // ---------- move preview ----------
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const short = (p) => p.replace(/^src\/app\//, '');
+const short = (p) => (DATA && p.startsWith(DATA.root + '/') ? p.slice(DATA.root.length + 1) : p.replace(/^src\/app\//, ''));
 
 async function previewMove(node, target) {
   const body = { source: node.data.path, target: target.data.path };
@@ -497,8 +516,10 @@ async function previewMove(node, target) {
       <footer><button class="btn" data-close>Close</button></footer>`);
   }
   const moves = plan.moves.map((m) => `<div class="row"><code class="from">${esc(short(m.from))}</code><br><code class="to">${esc(short(m.to))}</code></div>`).join('');
-  const edits = plan.edits.map((e) => `<div class="row"><code>${esc(short(e.file))}</code>${e.changes.map((c) =>
-    `<br><code class="from">${esc(c.from)}</code> → <code class="to">${esc(c.to)}</code>`).join('')}</div>`).join('');
+  const change = (c) => c.from === '(added)' ? `<br><span class="tag info">added</span><code class="to">${esc(c.to)}</code>`
+    : c.to.startsWith('(removed') ? `<br><span class="tag info">removed</span><code class="from">${esc(c.from)}</code> <span class="hint">${esc(c.to.replace(/^\(removed: ?|\)$/g, ''))}</span>`
+    : `<br><code class="from">${esc(c.from)}</code> → <code class="to">${esc(c.to)}</code>`;
+  const edits = plan.edits.map((e) => `<div class="row"><code>${esc(short(e.file))}</code>${e.changes.map(change).join('')}</div>`).join('');
   const warn = plan.warnings.map((w) => `<div class="viol"><b>Check:</b> ${esc(w)}</div>`).join('');
   const issues = node.violations.length ? `<div class="viol"><b>${node.violations.length} rule issue${node.violations.length > 1 ? 's' : ''}</b> on this ${node.data.type} today. The map re-checks the rules after the move.</div>` : '';
   openModal(`<header><h1>Move ${esc(what)} → ${esc(where)}</h1></header>
@@ -545,7 +566,7 @@ function methodsDropped(serviceNode, methods, target) {
 
 async function previewMethodMove(serviceNode, methods, target, targetLabel) {
   const title = `Move ${methods.length === 1 ? methods[0] + '()' : methods.length + ' methods'} → ${targetLabel}`;
-  openModal(`<header><h1>${esc(title)}</h1></header><div class="body"><p class="hint">Analyzing with the TypeScript compiler…</p></div>`);
+  openModal(`<header><h1>${esc(title)}</h1></header><div class="body"><p class="hint">${SPRING() ? 'Analyzing the Java code…' : 'Analyzing with the TypeScript compiler…'}</p></div>`);
   let p;
   try { p = await api('POST', '/api/methods/plan', { source: serviceNode.data.path, methods, target }); }
   catch (e) {
@@ -581,7 +602,7 @@ async function previewMethodMove(serviceNode, methods, target, targetLabel) {
       ${along ? `<h4>Moves along automatically</h4>${along}` : ''}
       ${deps ? `<h4>${esc(p.target.className)} needs</h4>${deps}` : ''}
       <h4>Callers to update</h4>${callers || '<p class="hint">No callers outside the service.</p>'}${internal}
-      ${specs ? `<h4>Test mocks that mention these methods</h4>${specs}` : ''}
+      ${specs ? `<h4>${SPRING() ? 'Tests that call or mock these methods' : 'Test mocks that mention these methods'}</h4>${specs}` : ''}
       <h4>Dependency direction after the move</h4>${dirHtml}
       <h4>Task for Claude</h4><pre class="task" id="task">${esc(p.claudeTask)}</pre>
     </div>
@@ -635,12 +656,15 @@ function updateChrome() {
 }
 
 function legend() {
-  const items = [['component', 'Component'], ['service', 'Service'], ['routes', 'Routes'], ['guard', 'Guard / interceptor'],
-    ['pipe', 'Pipe / directive'], ['store', 'State'], ['model', 'Model']];
+  const items = SPRING()
+    ? [['controller', 'Controller'], ['service', 'Service'], ['repository', 'Repository'], ['entity', 'Entity'], ['dto', 'DTO / mapper'],
+      ['listener', 'Listener'], ['config', 'Config / component'], ['model', 'Model / other']]
+    : [['component', 'Component'], ['service', 'Service'], ['routes', 'Routes'], ['guard', 'Guard / interceptor'],
+      ['pipe', 'Pipe / directive'], ['store', 'State'], ['model', 'Model']];
   document.getElementById('legend').innerHTML = items.map(([k, l]) => `<span><i style="background:${KIND_COLOR[k]}"></i>${l}</span>`).join('') +
     `<span><i style="border:2px solid var(--danger);width:12px;height:12px"></i>Rule issue</span>` +
     `<span><i style="border:2px solid var(--k-service);background:var(--surface);width:12px;height:12px"></i>Method (dashed = private)</span>` +
-    `<span class="tip">Click a bubble to drill down · drag it onto a folder (or a breadcrumb) to move · open a service to move its methods</span>`;
+    `<span class="tip">Click a bubble to drill down · drag it onto a ${SPRING() ? 'package' : 'folder'} (or a breadcrumb) to move · open a service to move its methods</span>`;
 }
 
 const search = document.getElementById('search'), results = document.getElementById('results');

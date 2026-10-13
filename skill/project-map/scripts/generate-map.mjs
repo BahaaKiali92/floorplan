@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Angular project map generator. Zero dependencies (Node 18+).
+// Project map generator for Angular and Spring Boot (Java). Zero dependencies (Node 18+).
 //
-// Scans the Angular app folder, classifies files (components, services, routes, ...),
-// resolves imports (relative + tsconfig path aliases), merges your annotations and rules
-// from project-map.config.mjs.
+// Scans the app folder, classifies files (components, services, routes / controllers, services, repositories, ...),
+// resolves imports (TypeScript: relative + tsconfig path aliases; Java: imports, same-package use, qualified names),
+// merges your annotations and rules from project-map.config.mjs. The framework comes from `framework` in the config
+// ('angular' or 'spring'), or is detected (angular.json / pom.xml / build.gradle).
 //
 // Two layers:
 //   docs/PROJECT_MAP.md + docs/project-map.json   MAIN map, committed, written only by CI on main (--main)
@@ -12,7 +13,7 @@
 //       BRANCH_CHANGES.md, branch.json             what this branch changed compared with main
 //
 // Usage:
-//   node scripts/project-map/generate-map.mjs            # local map + branch report      (npm run map)
+//   node scripts/project-map/generate-map.mjs            # local map + branch report      (npm run map in Angular projects)
 //   node scripts/project-map/generate-map.mjs --main     # write the main map in docs/     (npm run map:main, CI on main)
 //   node scripts/project-map/generate-map.mjs --check    # fail only on rule issues NEW compared with main (npm run map:check)
 //   node scripts/project-map/generate-map.mjs --check --strict   # fail on every rule issue
@@ -44,13 +45,25 @@ if (SESSION) {
 const configArg = args.indexOf('--config');
 const configPath = path.resolve(configArg >= 0 ? args[configArg + 1] : 'project-map.config.mjs');
 
+const userConfig = fs.existsSync(configPath)
+  ? (await import(pathToFileURL(configPath).href)).default
+  : {};
+function detectFramework() {
+  const has = (f) => fs.existsSync(path.resolve(f));
+  if (has('angular.json')) return 'angular';
+  try { const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); if ({ ...pkg.dependencies, ...pkg.devDependencies }['@angular/core']) return 'angular'; } catch { /* no package.json */ }
+  if (['pom.xml', 'build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'].some(has)) return 'spring';
+  return 'angular';
+}
+const FRAMEWORK = argVal('--framework') || userConfig.framework || detectFramework();
+const SPRING = FRAMEWORK === 'spring';
 const defaults = {
-  root: 'src/app',
+  root: SPRING ? 'src/main/java' : 'src/app',
   tsconfig: 'tsconfig.json',
   output: { markdown: 'docs/PROJECT_MAP.md', json: 'docs/project-map.json', local: '.project-map' },
   maxFilesPerFolder: 8,
-  units: ['features/*'],
-  ignore: ['**/*.spec.ts', '**/environments/**'],
+  units: SPRING ? [] : ['features/*'],
+  ignore: SPRING ? ['**/package-info.java', '**/module-info.java'] : ['**/*.spec.ts', '**/environments/**'],
   folders: {},
   rules: [],
   baseBranch: 'main',
@@ -59,10 +72,7 @@ const defaults = {
   compactMaxLines: 250,
   compactWideFolder: 30, // in compact mode, a folder with more subfolders lists their names on one line
 };
-const userConfig = fs.existsSync(configPath)
-  ? (await import(pathToFileURL(configPath).href)).default
-  : {};
-const config = { ...defaults, ...userConfig, output: { ...defaults.output, ...(userConfig.output || {}) } };
+const config = { ...defaults, ...userConfig, framework: FRAMEWORK, output: { ...defaults.output, ...(userConfig.output || {}) } };
 
 const ROOT = path.resolve(config.root);
 if (!fs.existsSync(ROOT)) {
@@ -201,6 +211,7 @@ function resolveImport(fromAbs, spec) {
   return { external: pkg };
 }
 
+function scanAngular() {
 const allTs = walk(ROOT);
 const files = [];
 const externals = new Map();
@@ -248,6 +259,26 @@ for (const f of files.filter((x) => x.kind === 'routes' || /routes?\.ts$/.test(x
     if (target) routes.push({ file: f.path, path: m[1] === '' ? '(empty)' : m[1], target });
   }
 }
+return { files, externals, routes, testCount };
+}
+
+let scan, PLURAL, SINGULAR, TOTAL_KINDS;
+if (SPRING) {
+  const J = await import('./java.mjs');
+  scan = J.scanSpring({ ROOT, scanRoot: path.resolve(config.scanRoot || '.'), config, matchAny });
+  PLURAL = J.SPRING_PLURAL; SINGULAR = J.SPRING_SINGULAR; TOTAL_KINDS = J.SPRING_TOTALS;
+} else {
+  scan = scanAngular();
+  PLURAL = { component: 'components', service: 'services', routes: 'routes', module: 'modules', guard: 'guards',
+    interceptor: 'interceptors', resolver: 'resolvers', pipe: 'pipes', directive: 'directives', store: 'state',
+    model: 'models', config: 'config', other: 'other' };
+  SINGULAR = { component: 'component', service: 'service', routes: 'routes file', module: 'module', guard: 'guard',
+    interceptor: 'interceptor', resolver: 'resolver', pipe: 'pipe', directive: 'directive', store: 'state file',
+    model: 'model', config: 'config', other: 'other' };
+  TOTAL_KINDS = ['component', 'service', 'routes', 'guard', 'interceptor', 'pipe', 'directive', 'store', 'model'];
+}
+const { files, externals, routes, testCount } = scan;
+const fileByPath = new Map(files.map((f) => [f.path, f]));
 
 // ---------- areas (units) and their dependencies ----------
 function unitOf(p) {
@@ -275,11 +306,14 @@ for (const rule of config.rules) {
   const severity = rule.severity || 'error';
   if (rule.type === 'noImport') {
     for (const f of files) {
-      const from = matchAny(rule.from, f.path);
+      const from = matchAny(rule.from || '**', f.path);
       if (!from) continue;
+      if (rule.fromKinds && !rule.fromKinds.includes(f.kind)) continue;
+      if (rule.exceptFrom && matchAny(rule.exceptFrom, f.path)) continue;
       for (const t of f.imports) {
-        const to = matchAny(rule.to, t);
+        const to = matchAny(rule.to || '**', t);
         if (!to) continue;
+        if (rule.toKinds && !rule.toKinds.includes(fileByPath.get(t)?.kind)) continue;
         if (rule.allowSame && from.captures.length && from.captures[0] === to.captures[0]) continue;
         if (rule.except && matchAny(rule.except, t)) continue;
         violations.push({ rule: rule.name, severity, file: f.path, detail: `imports ${t}`, message: rule.message });
@@ -287,7 +321,7 @@ for (const rule of config.rules) {
     }
   } else if (rule.type === 'placement') {
     for (const f of files) {
-      if (!matchAny(rule.files, f.path)) continue;
+      if (!matchAny(rule.files || '**', f.path)) continue;
       if (rule.kinds && !rule.kinds.includes(f.kind)) continue;
       if (!matchAny(rule.allowedIn, f.path)) {
         violations.push({ rule: rule.name, severity, file: f.path, detail: `must be in ${asList(rule.allowedIn).join(' or ')}`, message: rule.message });
@@ -317,12 +351,6 @@ for (const f of files) {
   }
   node.files.push(f);
 }
-const PLURAL = { component: 'components', service: 'services', routes: 'routes', module: 'modules', guard: 'guards',
-  interceptor: 'interceptors', resolver: 'resolvers', pipe: 'pipes', directive: 'directives', store: 'state',
-  model: 'models', config: 'config', other: 'other' };
-const SINGULAR = { component: 'component', service: 'service', routes: 'routes file', module: 'module', guard: 'guard',
-  interceptor: 'interceptor', resolver: 'resolver', pipe: 'pipe', directive: 'directive', store: 'state file',
-  model: 'model', config: 'config', other: 'other' };
 function summarize(fs_) {
   if (!fs_.length) return '';
   const byKind = new Map();
@@ -345,10 +373,16 @@ function countsOnly(fs_) {
 const treeLines = [];
 function render(node, prefix, depth) {
   const folders = [...node.folders.values()].sort((a, b) => a.name.localeCompare(b.name));
-  for (const child of folders) {
-    const full = prefix ? `${prefix}/${child.name}` : child.name;
+  for (let child of folders) {
+    let full = prefix ? `${prefix}/${child.name}` : child.name;
+    let label = child.name;
+    // a folder with only one subfolder and no files is shown as one line: src/main/java/com/acme/
+    while (!child.files.length && child.folders.size === 1 && !annotationFor(full)) {
+      child = [...child.folders.values()][0];
+      full += `/${child.name}`; label += `/${child.name}`;
+    }
     const ann = annotationFor(full);
-    let line = `${'  '.repeat(depth)}- ${child.name}/`;
+    let line = `${'  '.repeat(depth)}- ${label}/`;
     if (ann?.purpose) line += ` — ${ann.purpose}`;
     if (ann?.owner) line += ` (owner: ${ann.owner})`;
     const wide = COMPACT && child.folders.size > config.compactWideFolder;
@@ -376,7 +410,7 @@ while (COMPACT && treeLines.length > config.compactMaxLines && config.compactDep
 
 // ---------- markdown ----------
 const count = (k) => files.filter((f) => f.kind === k).length;
-const totals = ['component', 'service', 'routes', 'guard', 'interceptor', 'pipe', 'directive', 'store', 'model']
+const totals = TOTAL_KINDS
   .map((k) => [k, count(k)]).filter(([, n]) => n).map(([k, n]) => `${n} ${n === 1 ? SINGULAR[k] : PLURAL[k]}`).join(' · ');
 const errors = violations.filter((v) => v.severity === 'error');
 
@@ -386,22 +420,22 @@ md.push('');
 md.push('> Generated by `scripts/project-map/generate-map.mjs`. Do not edit by hand.');
 md.push('> To change folder purposes or rules, edit `project-map.config.mjs` and regenerate.');
 md.push('');
-md.push(`Root: \`${config.root}\` · ${files.length} source files · ${testCount} spec files`);
+md.push(`Root: \`${config.root}\` · ${SPRING ? 'Spring Boot (Java)' : 'Angular'} · ${files.length} source files · ${testCount} ${SPRING ? 'test' : 'spec'} files`);
 md.push(totals ? `Contains: ${totals}` : '');
 md.push('');
 md.push('## Structure');
 md.push('');
 if (COMPACT) {
   md.push(`> Compact view (${files.length} files): counts per folder, ${shownDepth} level${shownDepth === 1 ? '' : 's'} deep.`);
-  md.push('> Full detail: the .json next to this file, or the graph (`npm run map:ui`).');
+  md.push(`> Full detail: the .json next to this file, or the graph (${SPRING ? '`node scripts/project-map/server.mjs`' : '`npm run map:ui`'}).`);
   md.push('');
 }
 md.push(...treeLines);
 md.push('');
 if (routes.length) {
-  md.push('## Routes');
+  md.push(SPRING ? '## HTTP endpoints and listeners' : '## Routes');
   md.push('');
-  md.push('| Path | Target | Defined in |');
+  md.push(SPRING ? '| Endpoint | Handler | Defined in |' : '| Path | Target | Defined in |');
   md.push('|---|---|---|');
   const shownRoutes = COMPACT ? routes.slice(0, 60) : routes;
   for (const r of shownRoutes) md.push(`| ${r.path} | ${r.target} | ${r.file} |`);
@@ -442,6 +476,7 @@ const markdown = md.join('\n');
 
 const data = {
   root: config.root,
+  framework: FRAMEWORK,
   files: files.map(({ _src, ...f }) => f),
   routes,
   areas: Object.fromEntries([...unitDeps].map(([u, d]) => [u, [...d].sort()])),
@@ -464,7 +499,7 @@ if (MODE === 'main') {
   fs.writeFileSync(mdOut, markdown);
   fs.writeFileSync(jsonOut, json);
   log(`✓ Wrote the main map: ${config.output.markdown} and ${config.output.json}`);
-  log(`  ${files.length} files · ${routes.length} routes · ${unitDeps.size} areas · ${violations.length} violations`);
+  log(`  ${files.length} files · ${routes.length} ${SPRING ? 'endpoints' : 'routes'} · ${unitDeps.size} areas · ${violations.length} violations`);
   if (violations.length && !QUIET) console.log(violations.map(fmt).join('\n'));
   process.exit(0);
 }
@@ -506,7 +541,7 @@ function baseFromMergeBase(mb) {
       const cfgCopy = path.join(cwdTmp, path.basename(configPath));
       if (cfgText) fs.writeFileSync(cfgCopy, cfgText);
       const outFile = path.join(tmp, 'base-map.json');
-      execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--json-stdout', '--json-out', outFile, '--config', cfgCopy],
+      execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--json-stdout', '--json-out', outFile, '--config', cfgCopy, '--framework', FRAMEWORK],
         { cwd: cwdTmp, stdio: ['ignore', 'ignore', 'ignore'] });
       baseData = JSON.parse(fs.readFileSync(outFile, 'utf8'));
     }
@@ -668,10 +703,10 @@ if (CHECK) {
 
 // MODE === 'local'
 if (!QUIET) {
-  console.log(`✓ Local map: ${path.relative(process.cwd(), LOCAL)}/PROJECT_MAP.md  (${files.length} files · ${routes.length} routes · ${violations.length} rule issues)`);
+  console.log(`✓ Local map: ${path.relative(process.cwd(), LOCAL)}/PROJECT_MAP.md  (${files.length} files · ${routes.length} ${SPRING ? 'endpoints' : 'routes'} · ${violations.length} rule issues)`);
   if (report.available) {
     console.log(`✓ Branch report: ${path.relative(process.cwd(), LOCAL)}/BRANCH_CHANGES.md  (${report.branch} vs ${report.source === 'merge-base' ? report.base : 'main map'})`);
     console.log(`  ${report.added.length} added · ${report.moved.length} moved · ${report.deleted.length} deleted · ${report.modified.length} modified · issues: ${report.newIssues.length} new, ${report.fixedIssues.length} fixed, ${report.existingIssues} existing`);
     for (const v of report.newIssues) console.log(fmt(v));
-  } else console.log(`  No branch comparison: ${report.note || 'no main map yet'}. The main map is created with: npm run map:main`);
+  } else console.log(`  No branch comparison: ${report.note || 'no main map yet'}. The main map is created with: ${SPRING ? 'node scripts/project-map/generate-map.mjs --main' : 'npm run map:main'}`);
 }

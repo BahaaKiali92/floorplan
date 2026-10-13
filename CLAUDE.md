@@ -1,6 +1,6 @@
 # project-map: development guide for Claude
 
-This repository develops **project-map**, a Claude Code skill (and plugin) for Angular repositories: a structure map
+This repository develops **project-map**, a Claude Code skill (and plugin) for Angular and Spring Boot (Java) repositories: a structure map
 Claude reads every session, a bubble-graph UI to move files/folders with import rewriting, method-move impact
 analysis, branch reports, and a CI check that fails only on new structure issues.
 
@@ -12,9 +12,10 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `skill/project-map/scripts/` | The tools, copied into target repos by `/project-map setup`. Node 18+, **zero dependencies**. |
 | `plugin/` | Claude Code plugin wrapping the same skill. `plugin/skills/project-map` is a **generated copy**: never edit it, run `scripts/sync-plugin.sh`. |
 | `.claude-plugin/marketplace.json` | Makes this repo a plugin marketplace (`/plugin marketplace add <owner>/<repo>`). |
-| `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`; `experiments/` for measured results. |
+| `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`, `4-SPRING-BOOT.md`; `experiments/` for measured results. |
 | `sample-app/` | Tiny Angular-shaped app with seeded issues (type stubs instead of real Angular). Used by tests and docs. |
-| `tests/run.sh` | End-to-end tests on a temp copy of `sample-app/` (53 checks). `tests/ui/*.py`: Playwright tests of the graph. |
+| `sample-spring-app/` | Small Spring Boot (Maven) app with seeded issues. Compiled in tests with `javac` against `tests/java-stubs/`. |
+| `tests/run.sh` | End-to-end tests on temp copies of both samples (100 checks; Java moves are compiled with `javac` when installed). `tests/ui/*.py`: Playwright tests of the graph. |
 | `scripts/` | `sync-plugin.sh`, `build-kit.sh` (→ `dist/project-map-kit.zip`). |
 | `README-KIT.md` | README that goes into the zip kit. |
 
@@ -22,10 +23,13 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 
 | File | Role |
 |---|---|
-| `generate-map.mjs` | Map generator. Modes: default (local map + branch report in `.project-map/`), `--main` (committed `docs/` map, CI only), `--check` (fail on issues new vs merge-base; `--strict`), `--session` (SessionStart hook output), `--json-stdout --json-out f` (internal: map of the merge-base tree). |
+| `generate-map.mjs` | Map generator (framework from config `framework`, else detected; Spring scanning in `java.mjs`). Modes: default (local map + branch report in `.project-map/`), `--main` (committed `docs/` map, CI only), `--check` (fail on issues new vs merge-base; `--strict`), `--session` (SessionStart hook output), `--json-stdout --json-out f` (internal: map of the merge-base tree). |
 | `lib.mjs` | Config loading, tsconfig aliases, glob matching, `makeContext`. |
 | `move.mjs` / `move-cli.mjs` | Move engine: companions, folder moves, import rewriting (relative, aliases, dynamic import, templateUrl/styleUrl), git mv, undo. |
 | `analyze.mjs` / `analyze-cli.mjs` | Method-move analysis with the target project's own TypeScript language service. |
+| `java.mjs` | Java parsing without a compiler: masking, package/imports/types/members, `JavaIndex`, kinds, endpoints, `scanSpring()`. |
+| `java-move.mjs` | Java class/package moves: package lines, imports, same-package use, FQNs, tests along, warnings. |
+| `java-analyze.mjs` | Method-move analysis for Spring beans (same plan shape as `analyze.mjs`). |
 | `server.mjs` + `ui.html` | Local graph server (127.0.0.1) + D3 circle-packing UI (bundled `d3.min.js`). |
 | `install-hooks.mjs` | Claude Code SessionStart hook in `.claude/settings.json` + git hooks; idempotent; `--remove`. |
 
@@ -46,5 +50,5 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 
 ## Known limits / ideas
 
-See `docs/3-FEATURES.md` section 9 and `docs/experiments/`. Next big items: Spring Boot support, reading boundary
-rules from Nx/Sheriff, rewriting relative `.scss` imports on move.
+See `docs/3-FEATURES.md` section 9, `docs/4-SPRING-BOOT.md` section 9 and `docs/experiments/`. Next big items: reading
+boundary rules from Nx/Sheriff (and ArchUnit for Java), React/Vue, Kotlin, rewriting relative `.scss` imports on move.

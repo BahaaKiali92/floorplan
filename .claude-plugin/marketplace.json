@@ -1,6 +1,6 @@
 {
   "name": "project-map-tools",
-  "description": "Project structure tools for Angular teams",
+  "description": "Project structure tools for Angular and Spring Boot teams",
   "owner": {
     "name": "Frontend Team"
   },
@@ -8,7 +8,7 @@
     {
       "name": "project-map",
       "source": "./plugin",
-      "description": "Bubble-graph map of an Angular app: drill down, move files and folders with import rewriting, preview moving methods between services, branch reports and a new-issues-only CI check"
+      "description": "Bubble-graph map of an Angular or Spring Boot app: drill down, move files, classes and packages with import rewriting, preview moving methods between services, branch reports and a new-issues-only CI check"
     }
   ]
 }

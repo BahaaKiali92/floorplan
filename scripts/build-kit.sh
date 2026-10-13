@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build dist/project-map-kit.zip: the package you copy to another laptop
-# (README, docs, the skill, the plugin marketplace, the sample app).
+# (README, docs, the skill, the plugin marketplace, the sample apps).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ./scripts/sync-plugin.sh >/dev/null
@@ -14,5 +14,7 @@ sed -i.bak 's#"source": "./plugin"#"source": "./plugins/project-map"#' "$OUT/plu
 cp -r plugin "$OUT/plugin-marketplace/plugins/project-map"
 rsync -a --exclude node_modules --exclude .project-map --exclude docs --exclude scripts sample-app/ "$OUT/sample-app/" 2>/dev/null \
   || (mkdir -p "$OUT/sample-app" && cp -r sample-app/src sample-app/angular.json sample-app/package.json sample-app/tsconfig.json "$OUT/sample-app/")
+cp -r sample-spring-app "$OUT/sample-spring-app"
+cp -r tests/java-stubs "$OUT/java-stubs"
 (cd dist && zip -qr project-map-kit.zip project-map-kit)
 echo "✓ dist/project-map-kit.zip ($(du -h dist/project-map-kit.zip | cut -f1))"

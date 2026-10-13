@@ -1,6 +1,7 @@
 # 3 · Features
 
-Everything the `project-map` skill can do, in detail.
+Everything the `project-map` skill can do, in detail. Examples are from Angular; Spring Boot (Java) works the same way,
+with the differences in [4-SPRING-BOOT.md](4-SPRING-BOOT.md).
 
 Contents:
 1. [Skill commands](#1-skill-commands)
@@ -302,7 +303,7 @@ For scripting or debugging. The server listens on 127.0.0.1 only.
 ## 9. Limits and roadmap
 
 Current limits:
-- Angular (TypeScript) only.
+- Angular (TypeScript) and Spring Boot (Java). No Kotlin, React or Vue yet.
 - Relative `@use`/`@import` inside moved `.scss` files are not rewritten (the preview warns).
 - Template and test-mock detection for methods is text-based (can list a same-named method of another object).
 - Undo history lives in the running graph server; after a restart use git.
@@ -310,7 +311,7 @@ Current limits:
 - Very large apps: the first method analysis can take a few seconds (the TypeScript program is built once, then reused).
 
 Ideas for next versions:
-- Spring Boot: Java packages, ArchUnit-style rules, method moves between `@Service` classes.
+- React and Vue.
 - Read boundary rules from Sheriff / Nx instead of our own rules.
 - Rewrite `.scss` relative imports on move.
 - Graphify integration for deep "how is X connected to Y" questions.

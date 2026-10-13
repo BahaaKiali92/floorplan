@@ -15,3 +15,10 @@ python3 method_moves_test.py ./mshots           # open a service, select methods
 
 Expected output ends with `errors: []`. Look at the screenshots after UI changes.
 Reset the sample repo between runs (`git reset --hard && git clean -fd src`), because the file test really moves files.
+
+Spring Boot sample (`sample-spring-app/`, prepared the same way with `templates/project-map.config.spring.mjs`):
+
+```bash
+node scripts/project-map/server.mjs --port 4392   # in the prepared copy, on a branch
+python3 spring_test.py ./sshots 4392              # overview, class move preview + move + undo, method-move preview
+```
