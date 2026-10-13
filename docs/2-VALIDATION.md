@@ -63,13 +63,48 @@ Only imports between project files count (relative imports and tsconfig path ali
 |---|---|---|
 | `name`, `severity`, `message` | | as above |
 | `type` | yes | `'placement'` |
-| `files` | yes | pattern of files the rule applies to |
+| `files` | no | pattern of files the rule applies to (default: all) |
 | `kinds` | no | only these file kinds: `component`, `service`, `routes`, `module`, `guard`, `interceptor`, `resolver`, `pipe`, `directive`, `store`, `model`, `config`, `other` |
 | `allowedIn` | yes | pattern(s) where those files may live; `[]` means nowhere |
+| `except` | no | pattern(s) of files the rule skips |
+| `allowComponentScoped` | no | default `true`: a service listed in a component's `providers: [...]` and placed in the same folder as that component is accepted (it is component-scoped on purpose) |
 
 File kinds come from Angular naming: `*.component.ts`, `*.service.ts`, `*.routes.ts` / `*-routing.module.ts`,
 `*.guard.ts`, `*.interceptor.ts`, `*.resolver.ts`, `*.pipe.ts`, `*.directive.ts`,
 `*.store|state|reducer|effects|actions|selectors|facade.ts`, `*.model|interface|types|enum|dto.ts`, `*.config.ts`.
+Files without such a suffix (the Angular 20+ style guide names them `user-profile.ts`) get their kind from the code:
+`@Component`, `@Directive`, `@Pipe`, `@NgModule`, `@Injectable`, `CanActivateFn`/`CanMatchFn` (guard),
+`HttpInterceptorFn` (interceptor), `ResolveFn` (resolver), `: Routes =`, `signalStore(`/`createReducer(` (store),
+`: ApplicationConfig =`. So prefer `kinds: ['service']` over `files: '**/*.service.ts'` in rules.
+
+When a file is in a folder whose name is close to an allowed one, the message says so:
+`must be in **/utils (folder "util/": did you mean "utils/"?)`.
+
+### Angular style-guide rules
+
+| Type | Options | Finds |
+|---|---|---|
+| `publicApi` | `modules` (e.g. `'features/*'`), `entry` (default `index.ts`), `except` | imports into another module that bypass its `index.ts`. Modules without an `index.ts` are skipped |
+| `naming` | `case`: `kebab` (default), `camel`, `pascal`; `files`, `kinds` | file names that don't follow the case (`UserProfile.ts`) |
+| `oneDeclaration` | `files` | files with more than one `@Component`/`@Directive`/`@Pipe`/`@Injectable`/`@NgModule` |
+| `companion` | `companion` (default `.spec.ts`), `kinds`, `files` | files without that companion next to them (e.g. components without a spec) |
+
+The template has the first three on as warnings and the spec rule commented out (it is noisy in older apps).
+Make a rule an error once main is clean of it.
+
+### Sheriff
+
+If the project uses [Sheriff](https://github.com/softarc-consulting/sheriff) (`sheriff.config.ts` and
+`@softarc/sheriff-core` in `node_modules`), its checks run as part of the map (`sheriff: 'auto'` in the config, the
+default; `false` turns it off). Sheriff stays the source of truth for module boundaries; project-map adds:
+
+- `sheriff:encapsulation` issues (deep imports into a module that has an `index.ts`) and `sheriff:dependency-rule`
+  issues (tags in `depRules` that don't allow the dependency) in the map, the graph and the branch report;
+- the new-issues-only check: Sheriff issues already on main don't block a branch, new ones fail `map:check`
+  (the branch point map runs Sheriff too).
+
+With Sheriff, remove the project-map rules it covers (`features-are-isolated`, `feature-public-api`,
+`shared-has-no-feature-deps`) and keep the ones it doesn't (placement, naming, one class per file).
 
 ### The default rules (from the template)
 
@@ -79,10 +114,11 @@ rules: [
     message: 'Features must not import other features. Move shared code to shared/ or core/.' },
   { name: 'shared-has-no-feature-deps', type: 'noImport', from: 'shared', to: ['features', 'core'],
     message: 'shared/ must stay generic. It cannot depend on features or core.' },
-  { name: 'services-placement', type: 'placement', files: '**/*.service.ts', allowedIn: ['core', 'features/*/data-access'],
+  { name: 'services-placement', type: 'placement', kinds: ['service'], allowedIn: ['core', 'features/*/data-access'],
     message: 'Services belong in core/ (app-wide) or features/<name>/data-access/.' },
   { name: 'no-components-in-core', type: 'placement', files: 'core', kinds: ['component'], allowedIn: [], severity: 'warn',
     message: 'core/ should not contain components. Use layout/ or shared/.' },
+  // style guide (warnings): feature-public-api, file-names-kebab-case, one-angular-class-per-file; see above
 ]
 ```
 

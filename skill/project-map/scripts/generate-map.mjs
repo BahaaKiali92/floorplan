@@ -26,6 +26,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 // ---------- CLI ----------
 const args = process.argv.slice(2);
@@ -42,6 +43,7 @@ if (SESSION) {
   process.on('uncaughtException', () => process.exit(0));
   process.on('unhandledRejection', () => process.exit(0));
 }
+const TOOL_VERSION = (() => { try { return fs.readFileSync(new URL('./VERSION', import.meta.url), 'utf8').trim(); } catch { return '?'; } })();
 const configArg = args.indexOf('--config');
 const configPath = path.resolve(configArg >= 0 ? args[configArg + 1] : 'project-map.config.mjs');
 
@@ -67,6 +69,8 @@ const defaults = {
   folders: {},
   rules: [],
   baseBranch: 'main',
+  ci: true,            // false: no CI job regenerates the main map; someone runs --main on main after merges
+  sheriff: 'auto',     // Angular: use the project's Sheriff (sheriff.config.ts) as an extra rule source; true / false / 'auto'
   compactAbove: 400,   // above this many files, the Structure section is summarized (keeps the map small for Claude)
   compactDepth: 3,     // folder levels shown in compact mode (reduced automatically to stay under compactMaxLines)
   compactMaxLines: 250,
@@ -74,6 +78,8 @@ const defaults = {
 };
 const config = { ...defaults, ...userConfig, framework: FRAMEWORK, output: { ...defaults.output, ...(userConfig.output || {}) } };
 
+// CI templates ask for the map paths, so they work with any output folder
+if (args.includes('--outputs')) { console.log(`${config.output.markdown} ${config.output.json}`); process.exit(0); }
 const ROOT = path.resolve(config.root);
 if (!fs.existsSync(ROOT)) {
   if (SESSION) process.exit(0);
@@ -103,6 +109,22 @@ function globToRegex(pattern) {
   return rx;
 }
 const asList = (x) => (Array.isArray(x) ? x : x ? [x] : []);
+// "util/" vs "utils/": point at folder names that almost match an allowed folder
+function editDistance(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+}
+function nearMiss(filePath, allowed) {
+  const wanted = new Set(asList(allowed).flatMap((p) => p.split('/')).filter((s) => s && !s.includes('*')));
+  for (const seg of filePath.split('/').slice(0, -1)) {
+    if (wanted.has(seg)) continue;
+    const close = [...wanted].find((w) => editDistance(seg.toLowerCase(), w.toLowerCase()) <= (w.length > 5 ? 2 : 1));
+    if (close) return ` (folder "${seg}/": did you mean "${close}/"?)`;
+  }
+  return '';
+}
 function matchAny(patterns, p) {
   for (const pat of asList(patterns)) {
     const m = globToRegex(pat).exec(p);
@@ -174,7 +196,26 @@ const KINDS = [
   ['model', /\.(model|interface|types|enum|dto)\.ts$/],
   ['config', /\.config\.ts$/],
 ];
-const kindOf = (name) => (KINDS.find(([, rx]) => rx.test(name)) || ['other'])[0];
+const kindBySuffix = (name) => (KINDS.find(([, rx]) => rx.test(name)) || ['other'])[0];
+// Angular 20+ style guide: files are named without type suffix (user-profile.ts). Then the code decides.
+const CONTENT_KINDS = [
+  ['component', /@Component\s*\(/],
+  ['directive', /@Directive\s*\(/],
+  ['pipe', /@Pipe\s*\(/],
+  ['module', /@NgModule\s*\(/],
+  ['guard', /:\s*(CanActivateFn|CanActivateChildFn|CanMatchFn|CanDeactivateFn)\b|implements\s+[^{]*\b(CanActivate|CanMatch|CanDeactivate)\b/],
+  ['interceptor', /:\s*HttpInterceptorFn\b|implements\s+[^{]*\bHttpInterceptor\b/],
+  ['resolver', /:\s*ResolveFn\b|implements\s+[^{]*\bResolve\s*</],
+  ['routes', /:\s*Routes\s*=/],
+  ['store', /\b(signalStore|createReducer|createEffect|createFeature|createActionGroup|createSelector)\s*\(/],
+  ['service', /@Injectable\s*\(/],
+  ['config', /:\s*ApplicationConfig\s*=/],
+];
+const kindOf = (name, src = '') => {
+  const k = kindBySuffix(name);
+  if (k !== 'other' || !src) return k;
+  return (CONTENT_KINDS.find(([, rx]) => rx.test(src)) || ['other'])[0];
+};
 const shortName = (name) => name.replace(/(-routing)?\.[a-z]+\.ts$/, '').replace(/\.ts$/, '');
 
 function stripTsComments(src) {
@@ -220,7 +261,11 @@ for (const abs of allTs) {
   if (matchAny(config.ignore, p)) continue;
   const src = stripTsComments(fs.readFileSync(abs, 'utf8'));
   const name = path.basename(abs);
-  const entry = { path: p, kind: kindOf(name), name: shortName(name), imports: [] };
+  const entry = { path: p, kind: kindOf(name, src), name: shortName(name), imports: [] };
+  const decl = (src.match(/@(Component|Directive|Pipe|Injectable|NgModule)\s*\(/g) || []).length;
+  if (decl > 1) entry.declarations = decl;
+  const pin = /providedIn\s*:\s*['"](\w+)['"]/.exec(src);
+  if (pin) entry.providedIn = pin[1];
   const sel = /selector\s*:\s*['"`]([^'"`]+)['"`]/.exec(src);
   if (sel && ['component', 'directive'].includes(entry.kind)) entry.selector = sel[1];
   const pipe = /@Pipe\(\s*\{[^}]*name\s*:\s*['"]([^'"]+)['"]/.exec(src);
@@ -240,6 +285,20 @@ for (const abs of allTs) {
 }
 files.sort((a, b) => a.path.localeCompare(b.path));
 const testCount = allTs.filter((f) => f.endsWith('.spec.ts')).length;
+// Services provided by a component (providers: [X]) are component-scoped: they belong next to that component.
+const byPathA = new Map(files.map((f) => [f.path, f]));
+for (const f of files.filter((x) => x.kind === 'component' || x.kind === 'directive')) {
+  const prov = /providers\s*:\s*\[([\s\S]*?)\]/.exec(f._src);
+  if (!prov) continue;
+  const names = new Set(prov[1].match(/\b[A-Z][\w$]*\b/g) || []);
+  for (const m of f._src.matchAll(/import\s*(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+    const imported = m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean);
+    if (!imported.some((n) => names.has(n))) continue;
+    const r = resolveImport(path.join(ROOT, f.path), m[2]);
+    const target = r.file && byPathA.get(rel(r.file));
+    if (target) target.scopedTo = f.path;
+  }
+}
 
 // ---------- routes ----------
 const routes = [];
@@ -323,10 +382,88 @@ for (const rule of config.rules) {
     for (const f of files) {
       if (!matchAny(rule.files || '**', f.path)) continue;
       if (rule.kinds && !rule.kinds.includes(f.kind)) continue;
+      if (rule.except && matchAny(rule.except, f.path)) continue;
+      // a service provided by a component in the same folder is component-scoped: it belongs there
+      if (rule.allowComponentScoped !== false && f.scopedTo && path.posix.dirname(f.scopedTo) === path.posix.dirname(f.path)) continue;
       if (!matchAny(rule.allowedIn, f.path)) {
-        violations.push({ rule: rule.name, severity, file: f.path, detail: `must be in ${asList(rule.allowedIn).join(' or ')}`, message: rule.message });
+        violations.push({ rule: rule.name, severity, file: f.path, detail: `must be in ${asList(rule.allowedIn).join(' or ')}${nearMiss(f.path, rule.allowedIn)}`, message: rule.message });
       }
     }
+  } else if (rule.type === 'naming') {
+    const rx = { kebab: /^[a-z0-9]+(-[a-z0-9]+)*$/, camel: /^[a-z][a-zA-Z0-9]*$/, pascal: /^[A-Z][a-zA-Z0-9]*$/ }[rule.case || 'kebab'];
+    for (const f of files) {
+      if (!matchAny(rule.files || '**', f.path) || (rule.kinds && !rule.kinds.includes(f.kind))) continue;
+      const base = path.posix.basename(f.path).split('.')[0];
+      if (!rx.test(base)) violations.push({ rule: rule.name, severity, file: f.path, detail: `file name "${base}" is not ${rule.case || 'kebab'}-case`, message: rule.message });
+    }
+  } else if (rule.type === 'companion') {
+    // e.g. every component and service has a .spec.ts next to it
+    const suffix = rule.companion || '.spec.ts';
+    for (const f of files) {
+      if (!matchAny(rule.files || '**', f.path) || (rule.kinds && !rule.kinds.includes(f.kind))) continue;
+      const want = f.path.replace(/\.ts$/, '') + suffix;
+      if (!fs.existsSync(path.join(ROOT, want))) violations.push({ rule: rule.name, severity, file: f.path, detail: `has no ${path.posix.basename(want)} next to it`, message: rule.message });
+    }
+  } else if (rule.type === 'oneDeclaration') {
+    for (const f of files) {
+      if (!matchAny(rule.files || '**', f.path) || !f.declarations) continue;
+      violations.push({ rule: rule.name, severity, file: f.path, detail: `declares ${f.declarations} Angular classes`, message: rule.message });
+    }
+  } else if (rule.type === 'publicApi') {
+    // modules (e.g. features/*) may only be imported through their index.ts from outside
+    const entryName = rule.entry || 'index.ts';
+    const moduleOf = (p) => { const m = matchAny(rule.modules, p); if (!m) return null; let i = 0; return m.pattern.replace(/\*\*?/g, () => m.captures[i++] ?? '*').replace(/\/\*\*$/, ''); };
+    for (const f of files) {
+      const own = moduleOf(f.path);
+      for (const t of f.imports) {
+        const mod = moduleOf(t);
+        if (!mod || mod === own || t === `${mod}/${entryName}`) continue;
+        if (!fs.existsSync(path.join(ROOT, mod, entryName))) continue; // no public API file: nothing to enforce
+        if (rule.except && matchAny(rule.except, t)) continue;
+        violations.push({ rule: rule.name, severity, file: f.path, detail: `imports ${t}`, message: rule.message || `Import ${mod} through ${mod}/${entryName}.` });
+      }
+    }
+  }
+}
+
+// ---------- Sheriff (Angular): the project's own module rules as an extra source ----------
+const SHERIFF = { active: false, note: '' };
+if (!SPRING && config.sheriff !== false) {
+  const cfgFile = ['sheriff.config.ts', 'sheriff.config.js', 'sheriff.config.mjs'].map((f) => path.resolve(f)).find((f) => fs.existsSync(f));
+  if (cfgFile || config.sheriff === true) {
+    let bin = null;
+    try { bin = path.join(path.dirname(createRequire(path.resolve('package.json')).resolve('@softarc/sheriff-core/package.json')), 'src', 'bin', 'main.js'); } catch { /* not installed */ }
+    if (process.env.SHERIFF_BIN) bin = process.env.SHERIFF_BIN;
+    if (!cfgFile) SHERIFF.note = 'sheriff: true, but no sheriff.config.ts found.';
+    else if (!bin || !fs.existsSync(bin)) SHERIFF.note = 'sheriff.config.ts found, but @softarc/sheriff-core is not installed (npm install).';
+    else {
+      const cfgSrc = fs.readFileSync(cfgFile, 'utf8');
+      const entry = typeof config.sheriff === 'object' && config.sheriff.entry ? config.sheriff.entry
+        : /entryFile|entryPoints/.test(cfgSrc) ? null : ['src/main.ts'].find((f) => fs.existsSync(f));
+      let out = '';
+      try { out = execFileSync(process.execPath, [bin, 'verify', ...(entry ? [entry] : [])], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 28 }); }
+      catch (e) { out = (e.stdout || '') + ''; if (!/Verification Report/.test(out)) SHERIFF.note = `Sheriff failed: ${(e.stderr || e.message || '').toString().split('\n')[0]}`; }
+      out = out.replace(/\u001b\[[0-9;]*m/g, '');
+      if (/Verification Report/.test(out)) {
+        SHERIFF.active = true;
+        let file = null, section = null;
+        for (const line of out.split('\n')) {
+          const fm = /^\|-- (.+)$/.exec(line.trimEnd());
+          if (fm) { file = fm[1].trim(); section = null; continue; }
+          if (/^\|   \|-- Encapsulation Violations/.test(line)) { section = 'enc'; continue; }
+          if (/^\|   \|-- Dependency Rule Violations/.test(line)) { section = 'dep'; continue; }
+          const im = /^\|   \|   \|-- (.+)$/.exec(line.trimEnd());
+          if (im && file && section) {
+            const abs = path.resolve(file);
+            if (!abs.startsWith(ROOT + path.sep)) continue;
+            const p = rel(abs);
+            if (section === 'enc') violations.push({ rule: 'sheriff:encapsulation', severity: 'error', file: p, detail: `deep import ${im[1].trim()}`, message: 'Sheriff: import another module only through its public API (index.ts).' });
+            else violations.push({ rule: 'sheriff:dependency-rule', severity: 'error', file: p, detail: im[1].trim(), message: 'Sheriff: depRules in sheriff.config.ts do not allow this dependency.' });
+          }
+        }
+      }
+    }
+    if (SHERIFF.note && !QUIET && !SESSION && MODE !== 'json') console.warn(`! ${SHERIFF.note}`);
   }
 }
 
@@ -417,7 +554,7 @@ const errors = violations.filter((v) => v.severity === 'error');
 const md = [];
 md.push('# Project map');
 md.push('');
-md.push('> Generated by `scripts/project-map/generate-map.mjs`. Do not edit by hand.');
+md.push(`> Generated by \`scripts/project-map/generate-map.mjs\` (project-map ${TOOL_VERSION}). Do not edit by hand.`);
 md.push('> To change folder purposes or rules, edit `project-map.config.mjs` and regenerate.');
 md.push('');
 md.push(`Root: \`${config.root}\` · ${SPRING ? 'Spring Boot (Java)' : 'Angular'} · ${files.length} source files · ${testCount} ${SPRING ? 'test' : 'spec'} files`);
@@ -452,10 +589,11 @@ if (COMPACT && depLines.length > 80) {
   md.push(`- …and ${depLines.length - 80} more areas (see the .json).`);
 } else md.push(...depLines);
 md.push('');
-if (config.rules.length) {
+if (config.rules.length || SHERIFF.active) {
   md.push('## Rules');
   md.push('');
   for (const r of config.rules) md.push(`- **${r.name}** (${r.severity || 'error'}): ${r.message || ''}`);
+  if (SHERIFF.active) md.push('- **sheriff:encapsulation**, **sheriff:dependency-rule** (error): module rules from `sheriff.config.ts`, checked by Sheriff.');
   md.push('');
 }
 md.push(`## Violations (${violations.length})`);
@@ -482,6 +620,8 @@ const data = {
   areas: Object.fromEntries([...unitDeps].map(([u, d]) => [u, [...d].sort()])),
   folders: config.folders,
   rules: config.rules,
+  sheriff: SHERIFF.active,
+  version: TOOL_VERSION,
   violations,
 };
 const json = JSON.stringify(data, null, 2) + '\n';
@@ -501,6 +641,18 @@ if (MODE === 'main') {
   log(`✓ Wrote the main map: ${config.output.markdown} and ${config.output.json}`);
   log(`  ${files.length} files · ${routes.length} ${SPRING ? 'endpoints' : 'routes'} · ${unitDeps.size} areas · ${violations.length} violations`);
   if (violations.length && !QUIET) console.log(violations.map(fmt).join('\n'));
+  const g = (a) => { try { return execFileSync('git', a, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } };
+  if (g(['rev-parse', '--is-inside-work-tree']) === 'true') {
+    // a main map that git ignores never reaches teammates or Claude in other clones
+    for (const out of [config.output.markdown, config.output.json]) {
+      if (g(['check-ignore', '-q', '--no-index', out]) !== null) {
+        console.warn(`! ${out} is ignored by git (.gitignore), so it is never committed. Set output.markdown / output.json in project-map.config.mjs to a tracked folder (e.g. 'project-map/PROJECT_MAP.md') and update the @reference in CLAUDE.md (node scripts/project-map/claude-md.mjs).`);
+      }
+    }
+    const branch = g(['rev-parse', '--abbrev-ref', 'HEAD']);
+    const base = config.baseBranch || 'main';
+    if (branch && branch !== base && branch !== 'HEAD' && !process.env.CI && !process.env.TF_BUILD) console.warn(`! You are on "${branch}". The main map describes ${base}: generate it on ${base}${config.ci === false ? ' after merging' : ' (CI does this)'}; on a branch use the local map (no --main).`);
+  }
   process.exit(0);
 }
 
@@ -532,7 +684,10 @@ function baseFromMergeBase(mb) {
     .split('\n').filter((f) => /(^|\/)tsconfig[^/]*\.json$/.test(f));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'project-map-base-'));
   try {
-    const tar = git(['-C', repoRoot, 'archive', '--format=tar', mb, '--', inProj(posix(config.root)), ...tsconfigs], { encoding: 'buffer' });
+    const sheriffFiles = SHERIFF.active ? ['sheriff.config.ts', 'sheriff.config.js', 'sheriff.config.mjs', 'package.json']
+      .filter((f) => gitText(['-C', repoRoot, 'cat-file', '-e', `${mb}:${inProj(f)}`]) !== null).map(inProj) : [];
+    const scanPart = SHERIFF.active ? posix(path.relative(process.cwd(), path.resolve(config.scanRoot || path.dirname(config.root)))) || '.' : posix(config.root);
+    const tar = git(['-C', repoRoot, 'archive', '--format=tar', mb, '--', inProj(scanPart), ...tsconfigs, ...sheriffFiles], { encoding: 'buffer' });
     let baseData = { files: [], routes: [], areas: {}, violations: [] };
     if (tar && tar.length) {
       execFileSync('tar', ['-x', '-C', tmp], { input: tar, stdio: ['pipe', 'ignore', 'ignore'] });
@@ -540,6 +695,10 @@ function baseFromMergeBase(mb) {
       fs.mkdirSync(cwdTmp, { recursive: true });
       const cfgCopy = path.join(cwdTmp, path.basename(configPath));
       if (cfgText) fs.writeFileSync(cfgCopy, cfgText);
+      // Sheriff and TypeScript come from the project's node_modules
+      if (SHERIFF.active && fs.existsSync(path.resolve('node_modules')) && !fs.existsSync(path.join(cwdTmp, 'node_modules'))) {
+        try { fs.symlinkSync(path.resolve('node_modules'), path.join(cwdTmp, 'node_modules'), 'junction'); } catch { /* without it Sheriff is skipped in the base map */ }
+      }
       const outFile = path.join(tmp, 'base-map.json');
       execFileSync(process.execPath, [fileURLToPath(import.meta.url), '--json-stdout', '--json-out', outFile, '--config', cfgCopy, '--framework', FRAMEWORK],
         { cwd: cwdTmp, stdio: ['ignore', 'ignore', 'ignore'] });
@@ -636,7 +795,7 @@ function branchMarkdown(r) {
   if (!r.available) { L.push(`No comparison with main available. ${r.note || ''}`); return L.join('\n') + '\n'; }
   const against = r.source === 'merge-base'
     ? `\`${r.base}\` at the branch point \`${r.mergeBase}\`${r.ahead ? ` (${r.base} has ${r.ahead} newer commit${r.ahead === 1 ? '' : 's'}; merge or rebase to get them)` : ''}`
-    : 'the committed main map (docs/project-map.json)';
+    : `the committed main map (${config.output.json})`;
   L.push(`Branch \`${r.branch || 'HEAD'}\` compared with ${against}. Includes uncommitted changes.`, '');
   L.push(`Summary: ${r.added.length} added · ${r.moved.length} moved · ${r.deleted.length} deleted · ${r.modified.length} modified · rule issues: ${r.newIssues.length} new, ${r.fixedIssues.length} fixed, ${r.existingIssues} existing`, '');
   const list = (title, items, fmtItem = (x) => `- ${x}`, max = 40) => {
@@ -676,7 +835,8 @@ if (SESSION) {
     out.push(`Rule issues introduced by this branch: ${r.newIssues.length}; fixed: ${r.fixedIssues.length}; existing on main: ${r.existingIssues}.`);
     for (const v of r.newIssues.slice(0, 10)) out.push(`- ${v.file} ${v.detail} (${v.rule})`);
   }
-  out.push('Main structure: docs/PROJECT_MAP.md. Branch details: .project-map/BRANCH_CHANGES.md. Current working-tree map: .project-map/PROJECT_MAP.md.');
+  const loc = config.output.local || '.project-map';
+  out.push(`Main structure: ${config.output.markdown}. Branch details: ${loc}/BRANCH_CHANGES.md. Current working-tree map: ${loc}/PROJECT_MAP.md.`);
   process.stdout.write(out.join('\n').slice(0, 3500) + '\n');
   process.exit(0);
 }
@@ -686,7 +846,7 @@ if (CHECK) {
   const r = report;
   const failing = strict || !r.available ? violations.filter((v) => v.severity === 'error')
     : r.newIssues.filter((v) => v.severity === 'error');
-  const against = r.available ? (r.source === 'merge-base' ? `${r.base} (branch point ${r.mergeBase})` : 'docs/project-map.json') : 'nothing (no main map found)';
+  const against = r.available ? (r.source === 'merge-base' ? `${r.base} (branch point ${r.mergeBase})` : config.output.json) : 'nothing (no main map found)';
   console.log(`Rule check against ${against}${strict ? ', strict' : ''}: ${files.length} files.`);
   if (!r.available) console.log(`  Note: ${r.note || 'no base map'}. All rule issues count. In CI, check out with full history (fetch-depth: 0).`);
   for (const v of r.newIssues || []) console.log(`  ✗ new: ${v.file} ${v.detail}\n      ${v.rule}: ${v.message || ''}`);

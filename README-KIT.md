@@ -73,6 +73,7 @@ In an Angular or Spring Boot repository, in Claude Code:
 | Command | What happens |
 |---|---|
 | `/project-map setup` | Copies the tools to `scripts/project-map/`, proposes folder purposes and rules (you confirm), adds `npm run map / map:check / map:ui`, adds a section to `CLAUDE.md`, generates the first map. Once per repo. Run again to update the tools. |
+| `/project-map update` | After updating the skill: brings the repository's copy of the tools, its CLAUDE.md section and (if you agree) its config up to date. |
 | `/project-map` or `/project-map map` | Refreshes the local map and branch report; summarizes what the branch changed and the structure. |
 | `/project-map ui` | Starts the bubble graph at http://localhost:4321 |
 | `/project-map move <source> <target-folder>` | Moves a file or folder with all imports rewritten (dry run first). |

@@ -1,0 +1,7 @@
+# Same line endings on every OS (Windows clones otherwise get CRLF in scripts and sample files).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+# Windows: git may also report the executable bit of *.sh as a change. Turn that off once per clone:
+#   git config core.fileMode false

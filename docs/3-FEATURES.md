@@ -306,12 +306,14 @@ Current limits:
 - Angular (TypeScript) and Spring Boot (Java). No Kotlin, React or Vue yet.
 - Relative `@use`/`@import` inside moved `.scss` files are not rewritten (the preview warns).
 - Template and test-mock detection for methods is text-based (can list a same-named method of another object).
-- Undo history lives in the running graph server; after a restart use git.
-- Rules: `noImport` and `placement`. Projects using Nx module boundaries or Sheriff can keep those as the source of truth.
+- Undo history lives in the running graph server; after a restart use git. For long sessions run the server in your
+  own terminal (`npm run map:ui`): started from Claude it is a background task that stops after a while.
+- Rules: `noImport`, `placement`, and the style-guide types `publicApi`, `naming`, `oneDeclaration`, `companion`.
+  Sheriff is read when the project uses it; Nx module boundaries are not read yet.
 - Very large apps: the first method analysis can take a few seconds (the TypeScript program is built once, then reused).
 
 Ideas for next versions:
 - React and Vue.
-- Read boundary rules from Sheriff / Nx instead of our own rules.
+- Read Nx module boundaries (Sheriff is supported since 0.6.0).
 - Rewrite `.scss` relative imports on move.
 - Graphify integration for deep "how is X connected to Y" questions.

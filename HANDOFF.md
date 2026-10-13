@@ -1,10 +1,11 @@
-# Handoff: where project-map stands (2026-10-13, updated after Spring Boot support)
+# Handoff: where project-map stands (2026-10-13, v0.6.0)
 
 Read `CLAUDE.md` first for the layout and working rules. This file says what is done and what comes next.
 
 ## Status
 
-- Version 0.5.0: Angular and Spring Boot (Java). All 100 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access);
+- Version 0.6.0: Angular and Spring Boot (Java). All 125 checks in `./tests/run.sh` pass (with `TS_PATH` or npm access,
+  `SHERIFF_PKG` for the Sheriff tests);
   Playwright UI tests in `tests/ui/` (Angular and `spring_test.py`).
 - Spring Boot (0.5.0): map with kinds from annotations, HTTP endpoints and listeners, kind-based rules
   (`fromKinds`, `toKinds`, `kinds`, `exceptFrom`), class/package moves (package lines, imports, same-package use,
@@ -14,7 +15,11 @@ Read `CLAUDE.md` first for the layout and working rules. This file says what is 
   fails only on new issues, bubble graph with drag-and-drop moves (imports rewritten, `git mv`, undo),
   method-move impact preview between services, CI templates (GitHub Actions, Azure Pipelines, GitLab).
 - Measured effect: `docs/experiments/2026-10-12-with-without-map.md`.
-- Not yet tested on a large real-world Angular or Spring Boot project.
+- 0.6.0 = feedback from the first real Angular project (MinuteView, 2026-10-13), see CHANGELOG.md: gitignored docs/
+  warning, no-CI mode, CRLF-safe CLAUDE.md writer, Windows notes, component-scoped services, near-miss hints, UI
+  lifetime note, `/project-map update` + version check. Plus Angular style-guide rules, Angular 20 suffix-less files,
+  and Sheriff as a rule source.
+- Spring Boot: tested on petclinic, buckpal, Apache Fineract; not yet on a company project.
 
 ## Decisions so far
 
@@ -39,7 +44,7 @@ Position it on those, not on "a map for Claude". Re-check the community catalog 
    Never commit company code to this repo.
 2. **Publishing prep:** LICENSE file, real author in `plugin/.claude-plugin/plugin.json`, GitHub Actions running
    `tests/run.sh`, `claude plugin validate --strict`, final name.
-3. **Read Nx module boundaries and Sheriff configs** as rule sources (about half a day each); for Java maybe ArchUnit.
+3. **Read Nx module boundaries** as a rule source (Sheriff is done); for Java maybe ArchUnit.
 4. **React and Vue** (about 1–2 weeks): `.vue` script-block imports, JSX, Vite aliases, kinds for hooks /
    stores / composables, warn that moves change routes in Next.js / Nuxt (file-based routing).
    Method moves stay Angular and Spring only for now.

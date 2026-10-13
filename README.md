@@ -32,5 +32,8 @@ Full documentation: [docs/1-SETUP.md](docs/1-SETUP.md), [docs/2-VALIDATION.md](d
 ./scripts/build-kit.sh            # dist/project-map-kit.zip for installing on another laptop
 ```
 
+On Windows: run the scripts with Git Bash (`bash scripts/sync-plugin.sh`), and once per clone
+`git config core.fileMode false` so the executable bit of the `.sh` files doesn't show up as a change.
+
 The source of truth is `skill/project-map/`. See [CLAUDE.md](CLAUDE.md) for the layout and working rules
 (also what Claude Code reads when you develop this repo with it).

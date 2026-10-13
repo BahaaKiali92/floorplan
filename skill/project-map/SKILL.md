@@ -1,7 +1,7 @@
 ---
 name: project-map
 description: Project map for Angular and Spring Boot (Java) repositories. Generates a structure map Claude reads for every task, checks folder/package and import rules, opens an interactive bubble graph to move files, classes and packages (imports rewritten), and previews moving methods between services. Use for "/project-map setup|map|ui|move|move-methods", for questions about where code belongs or which areas depend on each other, and whenever you create, move, rename or delete files in a repo that has docs/PROJECT_MAP.md.
-argument-hint: "[setup | map | ui [port] | move <source> <target-folder> | move-methods <task or details>]"
+argument-hint: "[setup | update | map | ui [port] | move <source> <target-folder> | move-methods <task or details>]"
 ---
 
 # Project map
@@ -18,6 +18,7 @@ Arguments: `$ARGUMENTS`
 | First word of the arguments | Do this |
 |---|---|
 | `setup` | Read `${CLAUDE_SKILL_DIR}/reference/setup.md` and follow it. Only when the user asked for setup. |
+| `update` | Read `${CLAUDE_SKILL_DIR}/reference/update.md` and follow it (new tool version into this repository). |
 | `map` or nothing | The **map** section below. |
 | `ui` | Read `${CLAUDE_SKILL_DIR}/reference/ui.md` and follow it. Only when the user asked for it. |
 | `move` | Read `${CLAUDE_SKILL_DIR}/reference/move.md` and follow it. |
@@ -27,6 +28,10 @@ If the skill was loaded without a slash command (you decided it is relevant), fo
 
 If `scripts/project-map/generate-map.mjs` is missing in the repository for anything other than `setup`,
 tell the user to run `/project-map setup` first and stop.
+
+Version check (any subcommand except `setup` and `update`): compare `${CLAUDE_SKILL_DIR}/scripts/VERSION` with
+`scripts/project-map/VERSION` in the repository (missing = older than 0.6.0). If the skill is newer, say so in one
+line and suggest `/project-map update`, then continue with the request.
 
 The framework is `framework` in `project-map.config.mjs` (`angular` or `spring`). Commands are the same for both:
 

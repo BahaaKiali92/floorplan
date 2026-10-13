@@ -15,7 +15,7 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `docs/` | User docs: `1-SETUP.md`, `2-VALIDATION.md`, `3-FEATURES.md`, `4-SPRING-BOOT.md`; `experiments/` for measured results. |
 | `sample-app/` | Tiny Angular-shaped app with seeded issues (type stubs instead of real Angular). Used by tests and docs. |
 | `sample-spring-app/` | Small Spring Boot (Maven) app with seeded issues. Compiled in tests with `javac` against `tests/java-stubs/`. |
-| `tests/run.sh` | End-to-end tests on temp copies of both samples (100 checks; Java moves are compiled with `javac` when installed). `tests/ui/*.py`: Playwright tests of the graph. |
+| `tests/run.sh` | End-to-end tests on temp copies of both samples (125 checks; Java moves are compiled with `javac` when installed; Sheriff tests run when `SHERIFF_PKG` points to an `@softarc/sheriff-core` package folder). `tests/ui/*.py`: Playwright tests of the graph. |
 | `scripts/` | `sync-plugin.sh`, `build-kit.sh` (→ `dist/project-map-kit.zip`). |
 | `README-KIT.md` | README that goes into the zip kit. |
 
@@ -32,6 +32,8 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 | `java-analyze.mjs` | Method-move analysis for Spring beans (same plan shape as `analyze.mjs`). |
 | `server.mjs` + `ui.html` | Local graph server (127.0.0.1) + D3 circle-packing UI (bundled `d3.min.js`). |
 | `install-hooks.mjs` | Claude Code SessionStart hook in `.claude/settings.json` + git hooks; idempotent; `--remove`. |
+| `claude-md.mjs` | Writes/updates the marked "Project structure" section in a repo's CLAUDE.md (framework, map path, CI or no-CI, keeps CRLF). |
+| `VERSION` | Tool version; copied into repos so `/project-map update` and the version check can compare. Bump it with plugin.json. |
 
 ## Working rules
 
@@ -45,10 +47,10 @@ analysis, branch reports, and a CI check that fails only on new structure issues
 - The session hook must never fail or print noise: errors exit 0 silently; output stays factual and < 3,500 chars.
 - Anything that writes to user code must preview first (dry run) and be undoable via git.
 - Every user-visible change: update `docs/` (setup / validation / features), add a test in `tests/run.sh`, bump
-  `version` in `plugin/.claude-plugin/plugin.json`.
+  `version` in `plugin/.claude-plugin/plugin.json` and `skill/project-map/scripts/VERSION`, add a line to `CHANGELOG.md`.
 - Release a kit: `./scripts/build-kit.sh` → `dist/project-map-kit.zip`.
 
 ## Known limits / ideas
 
 See `docs/3-FEATURES.md` section 9, `docs/4-SPRING-BOOT.md` section 9 and `docs/experiments/`. Next big items: reading
-boundary rules from Nx/Sheriff (and ArchUnit for Java), React/Vue, Kotlin, rewriting relative `.scss` imports on move.
+boundary rules from Nx (Sheriff done in 0.6.0; ArchUnit for Java), React/Vue, Kotlin, rewriting relative `.scss` imports on move.

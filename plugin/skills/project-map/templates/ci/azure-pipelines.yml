@@ -1,6 +1,6 @@
 # azure-pipelines-project-map.yml  (or add these steps to your existing pipeline)
 # - Pull requests: fail only when the PR introduces NEW structure rule issues.
-# - Builds of main (after a merge): regenerate the main map in docs/ and commit it. Only CI writes it.
+# - Builds of main (after a merge): regenerate the main map (docs/ by default) and commit it. Only CI writes it.
 # Permissions: the build identity ("<Project> Build Service") needs "Contribute" on the repository and,
 # if main has branch policies, "Bypass policies when pushing". Otherwise use the alternative at the bottom.
 trigger:
@@ -29,10 +29,11 @@ steps:
 
   - script: |
       node scripts/project-map/generate-map.mjs --main
-      if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
+      OUT=$(node scripts/project-map/generate-map.mjs --outputs)   # the map paths from project-map.config.mjs
+      if [ -n "$(git status --porcelain -- $OUT)" ]; then
         git config user.name "project-map-bot"
         git config user.email "project-map-bot@example.com"
-        git add docs/PROJECT_MAP.md docs/project-map.json
+        git add $OUT
         git commit -m "chore: update project map [skip ci]"
         git push origin HEAD:main
       fi

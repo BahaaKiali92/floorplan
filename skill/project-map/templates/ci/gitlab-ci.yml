@@ -20,10 +20,11 @@ project-map-main:
   script:
     - node scripts/project-map/generate-map.mjs --main
     - |
-      if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
+      OUT=$(node scripts/project-map/generate-map.mjs --outputs)   # the map paths from project-map.config.mjs
+      if [ -n "$(git status --porcelain -- $OUT)" ]; then
         git config user.name "project-map-bot"
         git config user.email "project-map-bot@example.com"
-        git add docs/PROJECT_MAP.md docs/project-map.json
+        git add $OUT
         git commit -m "chore: update project map [skip ci]"
         git push "https://oauth2:${PROJECT_MAP_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" HEAD:main
       fi

@@ -297,12 +297,25 @@ git fetch && git merge origin/main   # main map comes along, no conflicts; hooks
 
 ## 9. Update to a newer version
 
-1. Replace the skill folder (`~/.claude/skills/project-map`) with the new one, or for the plugin bump `version` in
-   `plugin-marketplace/plugins/project-map/.claude-plugin/plugin.json` and run
-   `claude plugin marketplace update project-map-tools`.
-2. In each repository: `/project-map setup` again. It copies the new tools into `scripts/project-map/`, keeps your
-   `project-map.config.mjs`, updates the `CLAUDE.md` section and npm scripts, and shows `git diff --stat scripts/project-map`.
-   Commit on a branch and merge; CI then regenerates the main map with the new version.
+1. Update the skill: copy the new `skill/project-map` folder over the old one, or for the plugin
+   `/plugin marketplace update project-map-tools`.
+2. In each repository: `/project-map update`. Claude compares versions (`scripts/project-map/VERSION`), copies the new
+   tools, refreshes the CLAUDE.md section (`claude-md.mjs`), lists new config options and rules from the template and
+   asks which to add, then runs the map and the check. Your `project-map.config.mjs` is never overwritten.
+3. When the skill is newer than a repository's tools, any `/project-map` command says so in one line.
+
+### Without CI
+
+If no CI job regenerates the main map, setup writes `ci: false` in the config. The CLAUDE.md section then says:
+after merging to main, someone runs `npm run map:main` (Spring: `node scripts/project-map/generate-map.mjs --main`)
+on main and commits it. `--main` warns when it runs on another branch.
+
+### Windows
+
+- `CLAUDE.md` keeps its line endings (CRLF) when the section is added or updated.
+- If git shows mode changes on files you didn't touch, run `git config core.fileMode false` once in that clone.
+- If your repository ignores `docs/`, choose another folder for the main map in the config (`output.markdown`,
+  `output.json`); setup checks this and `--main` warns about it.
 
 ## 10. Uninstall
 

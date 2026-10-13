@@ -208,6 +208,90 @@ has "$(cat docs/PROJECT_MAP.md)" "- core/src/main/java/com/acme/core/" "single-c
 out=$(node scripts/project-map/move-cli.mjs core/src/main/java/com/acme/core/service/InvoiceService.java api/src/main/java/com/acme/api/web 2>&1)
 has "$out" "moves to another module (api)" "warning: move into another module"
 
+echo "== 12. Angular: style guide rules, component-scoped services, Angular 20 names, near misses"
+NG=$TMP/ng2
+cp -r "$REPO/sample-app" "$NG" && cd "$NG"
+printf 'node_modules\n' > .gitignore
+mkdir -p node_modules && ln -s "$APP/node_modules/typescript" node_modules/typescript
+mkdir -p scripts/project-map && cp "$TOOLS"/* scripts/project-map/ && cp "$REPO/skill/project-map/templates/project-map.config.mjs" .
+git init -q -b main && git add -A && git commit -qm sample
+G="node scripts/project-map/generate-map.mjs"
+out=$($G --main 2>&1); has "$out" "29 files · 7 routes · 7 areas · 2 violations" "style-guide rules add nothing on a clean sample"
+has "$(cat docs/PROJECT_MAP.md)" "(project-map $(cat "$TOOLS/VERSION"))" "map header shows the tool version"
+git add -A && git commit -qm map && git switch -q -c feature/style
+# component-scoped service: listed in providers next to its component → accepted by services-placement
+sed -i.bak "s#  templateUrl: './customer-list.component.html',#  templateUrl: './customer-list.component.html',\n  providers: [CustomerExportService],#" src/app/features/customers/customer-list/customer-list.component.ts && rm -f src/app/features/customers/customer-list/*.bak
+out=$($G --check 2>&1); has "$out" "fixed: features/customers/customer-list/customer-export.service.ts must be in" "component-scoped service accepted (allowComponentScoped)"
+# Angular 20 style: no suffix in file names → kinds from decorators
+mkdir -p src/app/features/orders/order-summary
+printf "import { Component } from '@angular/core';\n@Component({ selector: 'app-order-summary', standalone: true, template: '' })\nexport class OrderSummary {}\n" > src/app/features/orders/order-summary/order-summary.ts
+printf "import { Injectable } from '@angular/core';\n@Injectable({ providedIn: 'root' })\nexport class OrderTotals {}\n" > src/app/features/orders/order-summary/order-totals.ts
+printf "import { CanActivateFn } from '@angular/router';\nexport const adminGuard: CanActivateFn = () => true;\n" > src/app/core/auth/admin.ts
+$G >/dev/null 2>&1
+kinds=$(node -e "const d=require('./.project-map/project-map.json');console.log(d.files.filter(f=>/order-summary\/|auth\/admin/.test(f.path)).map(f=>f.name+':'+f.kind).join(' '))")
+has "$kinds" "order-summary:component" "Angular 20 file name: component from @Component"
+has "$kinds" "order-totals:service" "Angular 20 file name: service from @Injectable"
+has "$kinds" "admin:guard" "functional guard (CanActivateFn)"
+out=$($G --check 2>&1); has "$out" "features/orders/order-summary/order-totals.ts must be in core or features/*/data-access" "placement by kind works without .service suffix"
+# near miss: util/ vs utils/
+mkdir -p src/app/shared/util
+printf "export const sum = (a: number, b: number) => a + b;\n" > src/app/shared/util/sum.ts
+cat > project-map.config.mjs.extra <<'JS'
+JS
+node -e "
+const fs=require('fs');let c=fs.readFileSync('project-map.config.mjs','utf8');
+c=c.replace(\"  rules: [\", \"  rules: [\n    { name: 'helpers-in-utils', type: 'placement', files: 'shared/**', kinds: ['other'], allowedIn: ['**/utils', 'shared/ui', 'shared/pipes', 'shared/directives'], message: 'Helpers live in a utils/ folder.' },\n    { name: 'naming-test', type: 'naming', case: 'kebab', message: 'kebab' },\");
+fs.writeFileSync('project-map.config.mjs',c);"
+rm -f project-map.config.mjs.extra
+printf "export const x = 1;\n" > src/app/shared/ui/MyHelper.ts
+out=$($G --check 2>&1)
+has "$out" '(folder "util/": did you mean "utils/"?)' "near-miss hint for util/ vs utils/"
+has "$out" 'file name "MyHelper" is not kebab-case' "naming rule"
+printf "import { Component, Injectable } from '@angular/core';\n@Injectable()\nexport class A {}\n@Component({ selector: 'x', template: '' })\nexport class B {}\n" > src/app/shared/ui/two-things.ts
+out=$($G 2>&1); has "$(cat .project-map/PROJECT_MAP.md)" "shared/ui/two-things.ts\` declares 2 Angular classes — one-angular-class-per-file" "one declaration per file"
+git checkout -q -- . && git clean -qfd src
+
+echo "== 13. Angular: public API rule and Sheriff"
+printf "export { CustomerAvatarComponent } from './ui/customer-avatar/customer-avatar.component';\n" > src/app/features/customers/index.ts
+out=$($G 2>&1); has "$(cat .project-map/PROJECT_MAP.md)" "features/orders/order-detail/order-detail.component.ts\` imports features/customers/ui/customer-avatar/customer-avatar.component.ts — feature-public-api" "deep import into a feature with an index.ts"
+rm -f src/app/features/customers/index.ts
+if [ -n "${SHERIFF_PKG:-}" ] && [ -d "$SHERIFF_PKG" ]; then
+  mkdir -p node_modules/@softarc && cp -r "$SHERIFF_PKG" node_modules/@softarc/sheriff-core
+  printf "import { appConfig } from './app/app.config';\nimport { AppComponent } from './app/app.component';\nexport const boot = [appConfig, AppComponent];\n" > src/main.ts
+  printf "export { CustomerAvatarComponent } from './ui/customer-avatar/customer-avatar.component';\n" > src/app/features/customers/index.ts
+  cat > sheriff.config.ts <<'TS'
+import { SheriffConfig, sameTag } from '@softarc/sheriff-core';
+export const config: SheriffConfig = {
+  entryFile: 'src/main.ts',
+  modules: { 'src/app/features/<feature>': ['domain:<feature>'], 'src/app/shared': ['shared'], 'src/app/core': ['core'], 'src/app/layout': ['layout'] },
+  depRules: { root: ['*'], 'domain:*': [sameTag, 'shared', 'core'], shared: [], core: ['shared'], layout: ['shared', 'core'] },
+};
+TS
+  git switch -q main && git add -A && git commit -qm "add sheriff"
+  out=$($G --main 2>&1); has "$(cat docs/PROJECT_MAP.md)" "sheriff:encapsulation" "Sheriff violations in the main map"
+  has "$(cat docs/PROJECT_MAP.md)" "deep import ../../customers/ui/customer-avatar/customer-avatar.component" "Sheriff deep import named"
+  git add -A && git commit -qm "map with sheriff" && git switch -q -c feature/sheriff
+  out=$($G --check 2>&1); code $? 0 "Sheriff issues on main don't block (base map ran Sheriff too)"
+  sed -i.bak "1a import { CustomerAvatarComponent } from '../../customers/ui/customer-avatar/customer-avatar.component';\nexport const X = CustomerAvatarComponent;" src/app/features/settings/settings-page/settings-page.component.ts && rm -f src/app/features/settings/settings-page/*.bak
+  out=$($G --check 2>&1); code $? 1 "new Sheriff violation fails the check"
+  has "$out" "deep import ../../customers/ui/customer-avatar/customer-avatar.component" "new Sheriff violation named"
+  git checkout -q -- .
+else
+  ok "Sheriff tests skipped (set SHERIFF_PKG to an @softarc/sheriff-core package folder)"
+fi
+
+echo "== 14. CLAUDE.md section, ignored map folder, outputs, version"
+printf '# Team\r\n\r\n## Project structure\r\n\r\n@docs/PROJECT_MAP.md\r\n\r\n- old\r\n\r\n## Other\r\n\r\nKeep.\r\n' > CLAUDE.md
+out=$(node scripts/project-map/claude-md.mjs --no-ci 2>&1); has "$out" "replaced the older section" "older section replaced"; has "$out" "CRLF kept" "CRLF kept"
+grep -q "Keep." CLAUDE.md && grep -q "there is no CI job" CLAUDE.md && ok "rest of CLAUDE.md kept, no-CI wording" || bad "CLAUDE.md content"
+[ "$(grep -c $'\r$' CLAUDE.md)" = "$(wc -l < CLAUDE.md)" ] && ok "every line still CRLF" || bad "mixed line endings"
+out=$(node scripts/project-map/claude-md.mjs --no-ci 2>&1); has "$out" "up to date" "idempotent"
+printf 'docs/\n' >> .gitignore
+out=$($G --main 2>&1); has "$out" "is ignored by git" "warns when the main map folder is gitignored"
+git checkout -q -- .gitignore
+out=$($G --outputs); has "$out" "docs/PROJECT_MAP.md docs/project-map.json" "--outputs for CI templates"
+out=$(git switch -q -c feat/x && $G --main 2>&1); has "$out" "The main map describes main" "warns when --main runs on a branch"
+
 echo
 echo "Passed: $PASS   Failed: $FAIL"
 [ "$FAIL" -eq 0 ]

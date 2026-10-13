@@ -1,6 +1,6 @@
 # .github/workflows/project-map.yml
 # - Pull requests: fail only when the PR introduces NEW structure rule issues (existing ones on main don't block).
-# - Pushes to main (merges): regenerate the main map in docs/ and commit it. Only CI writes it, so no merge conflicts.
+# - Pushes to main (merges): regenerate the main map (docs/ by default) and commit it. Only CI writes it, so no merge conflicts.
 # The map needs only Node (also for Spring Boot / Java projects); no npm install, no build required.
 name: Project map
 
@@ -36,10 +36,11 @@ jobs:
         if: github.event_name == 'push'
         run: |
           node scripts/project-map/generate-map.mjs --main
-          if [ -n "$(git status --porcelain -- docs/PROJECT_MAP.md docs/project-map.json)" ]; then
+          OUT=$(node scripts/project-map/generate-map.mjs --outputs)   # the map paths from project-map.config.mjs
+          if [ -n "$(git status --porcelain -- $OUT)" ]; then
             git config user.name "project-map-bot"
             git config user.email "project-map-bot@users.noreply.github.com"
-            git add docs/PROJECT_MAP.md docs/project-map.json
+            git add $OUT
             git commit -m "chore: update project map [skip ci]"
             git push
           fi
